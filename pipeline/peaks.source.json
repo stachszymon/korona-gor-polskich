@@ -1,0 +1,254 @@
+[
+  {
+    "id": "rysy",
+    "name": "Rysy",
+    "range": "Tatry",
+    "elevation": 2499,
+    "lat": 49.17958,
+    "lon": 20.08811,
+    "osmNodeId": 4366169405
+  },
+  {
+    "id": "babia-gora",
+    "name": "Babia Góra",
+    "range": "Beskid Żywiecki",
+    "elevation": 1725,
+    "lat": 49.57302,
+    "lon": 19.52933,
+    "osmNodeId": 477984782
+  },
+  {
+    "id": "sniezka",
+    "name": "Śnieżka",
+    "range": "Karkonosze",
+    "elevation": 1603,
+    "lat": 50.73603,
+    "lon": 15.73961,
+    "osmNodeId": 1850303773
+  },
+  {
+    "id": "snieznik",
+    "name": "Śnieżnik",
+    "range": "Masyw Śnieżnika",
+    "elevation": 1425,
+    "lat": 50.20741,
+    "lon": 16.84742,
+    "osmNodeId": 26863429
+  },
+  {
+    "id": "tarnica",
+    "name": "Tarnica",
+    "range": "Bieszczady",
+    "elevation": 1346,
+    "lat": 49.07477,
+    "lon": 22.72632,
+    "osmNodeId": 1347929065
+  },
+  {
+    "id": "turbacz",
+    "name": "Turbacz",
+    "range": "Gorce",
+    "elevation": 1310,
+    "lat": 49.54282,
+    "lon": 20.11138,
+    "osmNodeId": 26864983
+  },
+  {
+    "id": "radziejowa",
+    "name": "Radziejowa",
+    "range": "Beskid Sądecki",
+    "elevation": 1266,
+    "lat": 49.4493,
+    "lon": 20.60412,
+    "osmNodeId": 1198299196
+  },
+  {
+    "id": "skrzyczne",
+    "name": "Skrzyczne",
+    "range": "Beskid Śląski",
+    "elevation": 1257,
+    "lat": 49.68457,
+    "lon": 19.03027,
+    "osmNodeId": 26864701
+  },
+  {
+    "id": "mogielica",
+    "name": "Mogielica",
+    "range": "Beskid Wyspowy",
+    "elevation": 1170,
+    "lat": 49.65532,
+    "lon": 20.27667,
+    "osmNodeId": 1236685520
+  },
+  {
+    "id": "wysoka-kopa",
+    "name": "Wysoka Kopa",
+    "range": "Góry Izerskie",
+    "elevation": 1126,
+    "lat": 50.85,
+    "lon": 15.42028,
+    "osmNodeId": 707906070
+  },
+  {
+    "id": "rudawiec",
+    "name": "Rudawiec",
+    "range": "Góry Bialskie",
+    "elevation": 1106,
+    "lat": 50.2448,
+    "lon": 16.97686,
+    "osmNodeId": 1793427200
+  },
+  {
+    "id": "orlica",
+    "name": "Orlica",
+    "range": "Góry Orlickie",
+    "elevation": 1084,
+    "lat": 50.35325,
+    "lon": 16.36063,
+    "osmNodeId": 2418877544
+  },
+  {
+    "id": "wysoka",
+    "name": "Wysoka",
+    "range": "Pieniny",
+    "elevation": 1050,
+    "lat": 49.38026,
+    "lon": 20.5555,
+    "osmNodeId": 615627232
+  },
+  {
+    "id": "wielka-sowa",
+    "name": "Wielka Sowa",
+    "range": "Góry Sowie",
+    "elevation": 1015,
+    "lat": 50.68028,
+    "lon": 16.48556,
+    "osmNodeId": 458891184
+  },
+  {
+    "id": "lackowa",
+    "name": "Lackowa",
+    "range": "Beskid Niski",
+    "elevation": 997,
+    "lat": 49.42655,
+    "lon": 21.10248,
+    "osmNodeId": 4366115862
+  },
+  {
+    "id": "kowadlo",
+    "name": "Kowadło",
+    "range": "Góry Złote",
+    "elevation": 989,
+    "lat": 50.26443,
+    "lon": 17.01322,
+    "osmNodeId": 2421373077
+  },
+  {
+    "id": "jagodna",
+    "name": "Jagodna",
+    "range": "Góry Bystrzyckie",
+    "elevation": 977,
+    "lat": 50.25246,
+    "lon": 16.56442,
+    "osmNodeId": 2418865417
+  },
+  {
+    "id": "skalnik",
+    "name": "Skalnik",
+    "range": "Rudawy Janowickie",
+    "elevation": 945,
+    "lat": 50.80848,
+    "lon": 15.90006,
+    "osmNodeId": 1219704819
+  },
+  {
+    "id": "czupel",
+    "name": "Czupel",
+    "range": "Beskid Mały",
+    "elevation": 930,
+    "lat": 49.76788,
+    "lon": 19.16103,
+    "osmNodeId": 3046822323
+  },
+  {
+    "id": "waligora",
+    "name": "Waligóra",
+    "range": "Góry Kamienne",
+    "elevation": 936,
+    "lat": 50.68082,
+    "lon": 16.27809,
+    "osmNodeId": 2470310941
+  },
+  {
+    "id": "szczeliniec-wielki",
+    "name": "Szczeliniec Wielki",
+    "range": "Góry Stołowe",
+    "elevation": 919,
+    "lat": 50.48481,
+    "lon": 16.34101,
+    "osmNodeId": 492775426
+  },
+  {
+    "id": "lubomir",
+    "name": "Lubomir",
+    "range": "Beskid Makowski",
+    "elevation": 904,
+    "lat": 49.76688,
+    "lon": 20.05967,
+    "osmNodeId": 2845608415
+  },
+  {
+    "id": "biskupia-kopa",
+    "name": "Biskupia Kopa",
+    "range": "Góry Opawskie",
+    "elevation": 890,
+    "lat": 50.25669,
+    "lon": 17.42858,
+    "osmNodeId": 991934327
+  },
+  {
+    "id": "chelmiec",
+    "name": "Chełmiec",
+    "range": "Góry Wałbrzyskie",
+    "elevation": 851,
+    "lat": 50.77955,
+    "lon": 16.21097,
+    "osmNodeId": 428725380
+  },
+  {
+    "id": "klodzka-gora",
+    "name": "Kłodzka Góra",
+    "range": "Góry Bardzkie",
+    "elevation": 765,
+    "lat": 50.45167,
+    "lon": 16.75322,
+    "osmNodeId": 529512640
+  },
+  {
+    "id": "skopiec",
+    "name": "Skopiec",
+    "range": "Góry Kaczawskie",
+    "elevation": 724,
+    "lat": 50.94393,
+    "lon": 15.88471,
+    "osmNodeId": 4593556759
+  },
+  {
+    "id": "sleza",
+    "name": "Ślęża",
+    "range": "Masyw Ślęży",
+    "elevation": 718,
+    "lat": 50.86409,
+    "lon": 16.7075,
+    "osmNodeId": 349062696
+  },
+  {
+    "id": "lysica",
+    "name": "Łysica",
+    "range": "Góry Świętokrzyskie",
+    "elevation": 614,
+    "lat": 50.89162,
+    "lon": 20.8966,
+    "osmNodeId": 1844240120
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "version": 0.6,
+  "generator": "hand-built (Overpass was unavailable): shape of a trailheadCandidatesQuery response (way centres as nodes), POIs placed next to the trail ends of babia-gora.relations.json",
+  "elements": [
+    { "type": "node", "id": 1001, "lat": 49.5817, "lon": 19.5103, "tags": { "amenity": "parking", "name": "Markowe Szczawiny" } },
+    { "type": "node", "id": 1002, "lat": 49.5633, "lon": 19.5077, "tags": { "highway": "bus_stop", "name": "Zawoja Markowa" } },
+    { "type": "node", "id": 1003, "lat": 49.5907, "lon": 19.5563, "tags": { "amenity": "parking" } },
+    { "type": "node", "id": 1004, "lat": 49.5915, "lon": 19.5575, "tags": { "place": "hamlet", "name": "Zawoja Czatoża" } },
+    { "type": "node", "id": 1005, "lat": 49.5990, "lon": 19.4300, "tags": { "place": "village", "name": "Zawoja" } },
+    { "type": "node", "id": 1006, "lat": 49.6050, "lon": 19.4500, "tags": { "amenity": "parking", "name": "Parking daleko od szlaków" } }
+  ]
+}
