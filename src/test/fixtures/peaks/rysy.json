@@ -1,0 +1,83 @@
+{
+  "peakId": "rysy",
+  "trails": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "colors": [
+            "red"
+          ],
+          "name": "Szlak na Rysy"
+        },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              20.07,
+              49.18
+            ],
+            [
+              20.080000000000002,
+              49.185
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "routes": [
+    {
+      "id": "rysy--morskie-oko",
+      "name": "Znad Morskiego Oka",
+      "trailhead": {
+        "name": "Morskie Oko",
+        "lat": 49.2,
+        "lon": 20.07,
+        "kind": "parking"
+      },
+      "distanceKm": 9.5,
+      "ascentM": 1050,
+      "descentM": 10,
+      "durationMin": 330,
+      "colors": [
+        "red"
+      ],
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            20.07,
+            49.2,
+            1395
+          ],
+          [
+            20.080000000000002,
+            49.205000000000005,
+            1920
+          ],
+          [
+            20.09,
+            49.21,
+            2445
+          ]
+        ]
+      },
+      "profile": [
+        [
+          0,
+          1395
+        ],
+        [
+          25,
+          1397
+        ],
+        [
+          50,
+          1399
+        ]
+      ]
+    }
+  ]
+}
