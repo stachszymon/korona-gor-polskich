@@ -1,1 +1,206 @@
-{}
+{
+  "rysy": {
+    "exclude": ["lysa-polana", "strbske-pleso-31", "strbske-pleso-2"],
+    "maxRoutes": 2,
+    "rename": {
+      "rysy--palenica-bialczanska": "Z Palenicy Białczańskiej przez Morskie Oko",
+      "rysy--strbske-pleso-19": "Ze Szczyrbskiego Jeziora przez Popradzki Staw"
+    }
+  },
+  "babia-gora": {
+    "exclude": ["za-grunikiem", "zawoja-krowiarki", "zawoja-krowiarki-2", "marki", "markowa"],
+    "rename": {
+      "babia-gora--parking-krowiarki": "Z Przełęczy Krowiarki",
+      "babia-gora--stancowa": "Z Lipnicy Wielkiej (Stańcowa)",
+      "babia-gora--zawoja-markowa": "Z Zawoi Markowej przez Markowe Szczawiny"
+    }
+  },
+  "tarnica": {
+    "rename": {
+      "tarnica--wolosate-wies": "Z Wołosatego",
+      "tarnica--ustrzyki-gorne-10": "Z Ustrzyk Górnych",
+      "tarnica--muczne": "Z Mucznego"
+    }
+  },
+  "turbacz": {
+    "exclude": ["koszary-2"],
+    "rename": {
+      "turbacz--wyzni-zarebek": "Z Łopusznej (Wyżni Zarębek)",
+      "turbacz--pod-gora-7": "Z Waksmundu (Pod Górą)",
+      "turbacz--hucisko": "Z Koninek (Poręba Wielka)"
+    }
+  },
+  "mogielica": {
+    "rename": {
+      "mogielica--cyrla": "Z Półrzeczek (Cyrla)",
+      "mogielica--do-sarysza": "Z Chyszówek (Do Sarysza)"
+    }
+  },
+  "wysoka-kopa": {
+    "exclude": ["antoniow"],
+    "addTrailhead": [{"name": "Rozdroże Izerskie", "lat": 50.86507, "lon": 15.44727}],
+    "rename": {
+      "wysoka-kopa--jakuszyce-9": "Z Jakuszyc",
+      "wysoka-kopa--rozdroze-izerskie": "Z Rozdroża Izerskiego",
+      "wysoka-kopa--szklarska-poreba-4": "Ze Szklarskiej Poręby"
+    },
+    "summitPath": [
+      [15.42028, 50.85], [15.42006, 50.84996], [15.42007, 50.85041], [15.42011, 50.85053],
+      [15.42005, 50.85092], [15.42009, 50.85097], [15.42008, 50.8511], [15.42028, 50.85127],
+      [15.42019, 50.85145], [15.42023, 50.85153], [15.42047, 50.85166], [15.4209, 50.85211],
+      [15.42155, 50.85217], [15.42281, 50.85245], [15.42414, 50.85244], [15.4244156, 50.8525]
+    ]
+  },
+  "orlica": {
+    "exclude": ["oserov", "destne-v-orlickych-horach-14", "destne-v-orlickych-horach-serlich", "destne-v-orlickych-horach-serlich-2", "destne-v-orlickych-horach-15"],
+    "rename": {
+      "orlica--parking-zieleniec-stok": "Z Zieleńca",
+      "orlica--olesnice-v-orlickych-horach-namesti": "Z Olešnic v Orlických horách (Czechy)",
+      "orlica--horni-sedlonov": "Z Horního Sedloňova (Czechy)"
+    }
+  },
+  "wielka-sowa": {
+    "rename": {
+      "wielka-sowa--sowa-3": "Z Przełęczy Sokolej",
+      "wielka-sowa--modlecin": "Z Modlęcina",
+      "wielka-sowa--kamionki-gorne": "Z Kamionek Górnych"
+    }
+  },
+  "czupel": {
+    "rename": {
+      "czupel--magurka": "Z Magurki Wilkowickiej",
+      "czupel--parking-na-przeleczy-przegibek": "Z Przełęczy Przegibek"
+    }
+  },
+  "waligora": {
+    "rename": {
+      "waligora--trzy-strugi": "Z Łomnicy (Trzy Strugi)",
+      "waligora--sokolowsko-10": "Z Sokołowska",
+      "waligora--rybnica-lesna-5": "Z Rybnicy Leśnej"
+    }
+  },
+  "rudawiec": {
+    "rename": {
+      "rudawiec--bielice": "Z Bielic",
+      "rudawiec--velke-vrbno-7": "Z Velkého Vrbna (Czechy)",
+      "rudawiec--petrikov-3": "Z Petříkova (Czechy)"
+    }
+  },
+  "kowadlo": {
+    "rename": {
+      "kowadlo--bielice-2": "Z Bielic",
+      "kowadlo--hranicky": "Z Hraniček (Czechy)",
+      "kowadlo--velke-vrbno-7": "Z Velkého Vrbna (Czechy)"
+    }
+  },
+  "lubomir": {
+    "rename": {
+      "lubomir--labedne": "Z Węglówki (Łabędne)",
+      "lubomir--kudlacze-5": "Z Kudłaczy (Pcim)",
+      "lubomir--granice": "Z Lipnika (Granice)"
+    }
+  },
+  "biskupia-kopa": {
+    "rename": {
+      "biskupia-kopa--petrovice": "Z Petrovic (Czechy)",
+      "biskupia-kopa--bolkowice": "Z Jarnołtówka (Bolkowice)",
+      "biskupia-kopa--zlate-hory-16": "Ze Zlatých Hor (Czechy)"
+    }
+  },
+  "skrzyczne": {
+    "rename": {
+      "skrzyczne--szczyrk-25": "Ze Szczyrku (spod kolei na Skrzyczne)",
+      "skrzyczne--jaski-3": "Z Ostrego (Lipowa)",
+      "skrzyczne--witkowska-2": "Ze Szczyrku (spod gondoli Szczyrk Mountain Resort)"
+    }
+  },
+  "lackowa": {
+    "rename": {
+      "lackowa--izby": "Z Izb",
+      "lackowa--ropki": "Z Ropek",
+      "lackowa--cigelka-2": "Z Cigeľki (Słowacja)"
+    }
+  },
+  "jagodna": {
+    "rename": {
+      "jagodna--spalona-3": "Ze Spalonej",
+      "jagodna--poniatow": "Z Poniatowa",
+      "jagodna--gniewoszow-ii": "Z Gniewoszowa"
+    }
+  },
+  "radziejowa": {
+    "rename": {
+      "radziejowa--psiarka": "Z Młodowa (Psiarka)",
+      "radziejowa--krotka": "Z Obidzy (Krótka)"
+    }
+  },
+  "lysica": {
+    "rename": {
+      "lysica--swieta-katarzyna-4": "Ze Świętej Katarzyny",
+      "lysica--pogorzele": "Z Krajna (Pogorzele)",
+      "lysica--od-podlesia-4": "Z Kakonina"
+    }
+  },
+  "skalnik": {
+    "rename": {
+      "skalnik--czarnow": "Z Czarnowa",
+      "skalnik--gruszkow": "Z Gruszkowa"
+    }
+  },
+  "sniezka": {
+    "rename": {
+      "sniezka--karpacz-77": "Z Karpacza",
+      "sniezka--mala-upa-za-vetrem": "Z Przełęczy Okraj (Pomezní Boudy)",
+      "sniezka--lanovka-snezka": "Z Pecu pod Sněžkou (Czechy)"
+    }
+  },
+  "wysoka": {
+    "rename": {
+      "wysoka--homole": "Z Jaworek (Wąwóz Homole)",
+      "wysoka--lesnica-lesnicke-sedlo": "Z Lesnicy (Słowacja)",
+      "wysoka--kornaje": "Z Białej Wody (Kornaje)"
+    }
+  },
+  "szczeliniec-wielki": {
+    "rename": {
+      "szczeliniec-wielki--karlow-5": "Z Karłowa",
+      "szczeliniec-wielki--pasterka": "Z Pasterki",
+      "szczeliniec-wielki--wodospady-posny": "Spod Wodospadów Pośny"
+    }
+  },
+  "klodzka-gora": {
+    "rename": {
+      "klodzka-gora--podzamek": "Z Podzamka",
+      "klodzka-gora--debowina": "Z Dębowiny",
+      "klodzka-gora--jozwikow-2": "Z Jóźwikowa"
+    }
+  },
+  "skopiec": {
+    "rename": {
+      "skopiec--komarno-5": "Z Komarna",
+      "skopiec--wojcieszow": "Z Wojcieszowa",
+      "skopiec--radomierz-ii-72": "Z Radomierza"
+    }
+  },
+  "sleza": {
+    "rename": {
+      "sleza--tapadla": "Z Przełęczy Tąpadła",
+      "sleza--sulistrowice": "Z Sulistrowic",
+      "sleza--sobotka-3": "Z Sobótki"
+    }
+  },
+  "snieznik": {
+    "rename": {
+      "snieznik--parkingi-pod-skocznia-2": "Z Międzygórza",
+      "snieznik--janowa-gora-3": "Z Kletna (Janowa Góra)",
+      "snieznik--kamienica": "Z Kamienicy"
+    }
+  },
+  "chelmiec": {
+    "rename": {
+      "chelmiec--boguszow-gorce-14": "Z Boguszowa-Gorc (Boguszów)",
+      "chelmiec--szczawno-zdroj": "Ze Szczawna-Zdroju",
+      "chelmiec--boguszow-gorce-26": "Z Boguszowa-Gorc (Gorce)"
+    }
+  }
+}
