@@ -83,4 +83,33 @@ describe('toMountainStyle', () => {
     expect(style.sky).toBeDefined();
     expect(style.sky?.['fog-color']).toBeDefined();
   });
+
+  it('shows basemap labels in Polish, falling back to the local name', () => {
+    const englishFirst = [
+      'case',
+      ['has', 'name:nonlatin'],
+      ['concat', ['get', 'name:latin'], '\n', ['get', 'name:nonlatin']],
+      ['coalesce', ['get', 'name_en'], ['get', 'name']],
+    ];
+    const input: StyleSpecification = {
+      ...liberty,
+      layers: [
+        ...liberty.layers,
+        {
+          id: 'label_country_1',
+          type: 'symbol',
+          source: 'openmaptiles',
+          'source-layer': 'place',
+          layout: { 'text-field': englishFirst as never, 'text-font': ['Noto Sans Bold'] },
+        },
+      ],
+    };
+    const style = toMountainStyle(input);
+    const polish = ['coalesce', ['get', 'name:pl'], ['get', 'name']];
+    expect(layer(style, 'label_country_1').layout).toMatchObject({ 'text-field': polish, 'text-font': ['Noto Sans Bold'] });
+    expect(layer(style, 'label_village').layout).toMatchObject({ 'text-field': polish });
+    expect(JSON.stringify(style.layers)).not.toContain('name_en');
+    // Road shields show refs, not names: untouched.
+    expect(layer(style, 'road_shield_us').layout).toMatchObject({ 'text-field': ['to-string', ['get', 'ref']] });
+  });
 });
