@@ -38,9 +38,9 @@ export function RouteList({ routes, selectedRouteId, onSelectRoute }: RouteListP
                 ))}
               </span>
               <span className="route-list__trailhead">{`Start: ${route.trailhead.name}`}</span>
-              <span className="route-list__distance">{formatDistance(route.distanceKm)}</span>
+              <span className="route-list__distance">{`${formatDistance(route.distanceKm)} na szczyt`}</span>
               <span className="route-list__ascent">{formatAscent(route.ascentM)}</span>
-              <span className="route-list__duration">{`${formatDuration(route.durationMin)} (szacunkowo)`}</span>
+              <span className="route-list__duration">{`${formatDuration(route.durationMin)} na szczyt (szacunkowo)`}</span>
             </button>
             {selected && (
               <button

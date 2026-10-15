@@ -8,7 +8,7 @@ import { CONTOUR_THRESHOLDS, PTTK_HEX, STATUS_HEX } from './config';
 export type ProgressLike = { peaks: Record<string, { status: 'done' | 'planned' }> };
 
 export type PeakStatus = 'done' | 'planned' | 'todo';
-export type PeakProperties = { id: string; label: string; status: PeakStatus };
+export type PeakProperties = { id: string; name: string; elevation: number; label: string; status: PeakStatus };
 export type TrailProperties = { color: string; offset: number };
 export type RouteProperties = { id: string };
 
@@ -25,6 +25,8 @@ export function peaksToGeoJSON(peaks: PeakSummary[], progress: ProgressLike): Fe
       geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
       properties: {
         id: p.id,
+        name: p.name,
+        elevation: p.elevation,
         label: `${p.name}\n${p.elevation} m`,
         status: progress.peaks[p.id]?.status ?? 'todo',
       },
@@ -112,12 +114,17 @@ export function overlayLayers(): LayerSpecification[] {
       id: 'peak-labels',
       type: 'symbol',
       source: 'peaks',
+      // At the overview zoom many peaks are a few km apart: labels must not pile up. The circles
+      // stay (separate layer); a label that does not fit is dropped, higher peaks win.
       layout: {
-        'text-field': ['get', 'label'],
+        'text-field': ['step', ['zoom'], ['get', 'name'], 9, ['get', 'label']],
         'text-font': ['Noto Sans Bold'],
-        'text-size': 15,
-        'text-offset': [0, -2.2],
-        'text-allow-overlap': true,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 6, 11, 10, 15],
+        'text-variable-anchor': ['bottom', 'top', 'left', 'right'],
+        'text-radial-offset': 0.9,
+        'text-allow-overlap': false,
+        'text-optional': true,
+        'symbol-sort-key': ['-', ['get', 'elevation']],
       },
       paint: { 'text-color': '#33261a', 'text-halo-color': '#ffffff', 'text-halo-width': 2 },
     },

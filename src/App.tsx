@@ -3,7 +3,7 @@ import { usePeakDetail, usePeaksIndex } from './data/usePeakDetail';
 import { MapView } from './map/MapView';
 import { pointAtDistance } from './map/routeCursor';
 import { supportsWebGL as detectWebGL } from './map/webgl';
-import type { PeakProgress } from './progress/progress';
+import { ProgressFormatError, type PeakProgress } from './progress/progress';
 import { useProgress } from './progress/useProgress';
 import { Banner } from './ui/Banner';
 import { ElevationProfile } from './ui/ElevationProfile';
@@ -26,7 +26,10 @@ const EDIT_DEBOUNCE_MS = 400;
 
 export function App({ deps = {} }: { deps?: AppDeps }) {
   const { fetchFn, supportsWebGL = detectWebGL } = deps;
-  const [webgl] = useState(supportsWebGL);
+  const [webglSupported] = useState(supportsWebGL);
+  // The map can still fail to start after the probe; then the app behaves as without WebGL.
+  const [mapFailed, setMapFailed] = useState(false);
+  const webgl = webglSupported && !mapFailed;
 
   const { status: indexStatus, index, retry: retryIndex } = usePeaksIndex(fetchFn);
   const { progress, persistent, recoveredCorrupt, setStatus, replace } = useProgress();
@@ -37,6 +40,7 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [tileError, setTileError] = useState(false);
   const [corruptDismissed, setCorruptDismissed] = useState(false);
+  const [saveRejected, setSaveRejected] = useState(false);
 
   const { status: detailStatus, detail, retry: retryDetail } = usePeakDetail(selectedPeakId, fetchFn);
 
@@ -69,7 +73,15 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
     }
     const pending = pendingSave.current;
     pendingSave.current = null;
-    if (pending) setStatus(pending.peakId, pending.entry);
+    if (!pending) return;
+    try {
+      setStatus(pending.peakId, pending.entry);
+      setSaveRejected(false);
+    } catch (error) {
+      // e.g. a year the date input allows but the progress format does not (0099, years past 9999).
+      if (!(error instanceof ProgressFormatError)) throw error;
+      setSaveRejected(true);
+    }
   }, [setStatus]);
 
   useEffect(() => flushSave, [flushSave]);
@@ -123,6 +135,11 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
             Zapisany postęp był uszkodzony. Zachowaliśmy jego kopię i zaczynamy od nowa.
           </Banner>
         )}
+        {saveRejected && (
+          <Banner kind="error" onDismiss={() => setSaveRejected(false)}>
+            Nie zapisano zmiany: nieprawidłowa data. Podaj datę z lat 1900–2100.
+          </Banner>
+        )}
         {webgl && tileError && (
           <Banner kind="info" onDismiss={() => setTileError(false)}>
             Część mapy nie wczytała się
@@ -147,6 +164,7 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
                 cursor={cursor}
                 onPeakClick={selectPeak}
                 onTileError={() => setTileError(true)}
+                onMapError={() => setMapFailed(true)}
               />
             </div>
           ) : (

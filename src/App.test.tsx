@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { PeakDetailSchema } from './data/schema';
@@ -11,6 +11,7 @@ vi.mock('./map/MapView', () => ({
     cursor: [number, number] | null;
     onPeakClick(id: string): void;
     onTileError(): void;
+    onMapError(): void;
   }) => (
     <div data-testid="map" data-cursor={JSON.stringify(props.cursor)}>
       <button type="button" onClick={() => props.onPeakClick('babia-gora')}>
@@ -18,6 +19,9 @@ vi.mock('./map/MapView', () => ({
       </button>
       <button type="button" onClick={props.onTileError}>
         simulate tile error
+      </button>
+      <button type="button" onClick={props.onMapError}>
+        simulate map error
       </button>
     </div>
   ),
@@ -100,6 +104,27 @@ describe('App', () => {
     expect(storedProgress()?.peaks['babia-gora']?.note).toBe('Mgła!');
   });
 
+  it('tells the user when a date cannot be saved instead of dropping the edit silently', async () => {
+    const { user } = renderApp();
+    const list = await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(within(list).getByRole('button', { name: /Babia Góra/ }));
+    await user.click(await screen.findByRole('button', { name: 'Zdobyty' }));
+
+    // A year the date input accepts but the progress format rejects (Date.UTC maps 0–99 to 19xx).
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '0099-05-01' } });
+    expect(
+      await screen.findByText('Nie zapisano zmiany: nieprawidłowa data. Podaj datę z lat 1900–2100.', {}, { timeout: 2000 }),
+    ).toBeInTheDocument();
+    expect(storedProgress()?.peaks['babia-gora']).toEqual({ status: 'done' });
+
+    // A valid date saves again and clears the message.
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-05-01' } });
+    await waitFor(() => expect(storedProgress()?.peaks['babia-gora']).toEqual({ status: 'done', date: '2026-05-01' }), {
+      timeout: 2000,
+    });
+    expect(screen.queryByText(/Nie zapisano zmiany/)).not.toBeInTheDocument();
+  });
+
   it('shows storage banner when storage is null', async () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('denied');
@@ -128,6 +153,16 @@ describe('App', () => {
     expect(screen.queryByTestId('map')).not.toBeInTheDocument();
     const list = await screen.findByRole('region', { name: 'Lista szczytów' });
     expect(within(list).getByRole('button', { name: /Rysy/ })).toBeInTheDocument();
+  });
+
+  it('falls back to the no-WebGL message when the map cannot be created', async () => {
+    const { user } = renderApp({ supportsWebGL: () => true });
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(screen.getByRole('button', { name: 'simulate map error' }));
+
+    expect(screen.getByText('Twoja przeglądarka nie obsługuje mapy 3D')).toBeInTheDocument();
+    expect(screen.queryByTestId('map')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Lista szczytów' })).toBeInTheDocument();
   });
 
   it('index load failure shows retry which reloads', async () => {

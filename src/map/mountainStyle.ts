@@ -26,7 +26,22 @@ function hide(layer: LayerSpecification): LayerSpecification {
   return { ...layer, layout: { ...layer.layout, visibility: 'none' } } as LayerSpecification;
 }
 
-function restyle(layer: LayerSpecification): LayerSpecification {
+/**
+ * OpenFreeMap tiles carry `name:pl` (OpenMapTiles language keys); `name` is the local name, so
+ * Czech and Slovak places without a Polish exonym keep their own names.
+ */
+const POLISH_NAME: ExpressionSpecification = ['coalesce', ['get', 'name:pl'], ['get', 'name']];
+
+/** Liberty labels prefer English (`name_en`); the app is in Polish. */
+function polishLabels(layer: LayerSpecification): LayerSpecification {
+  if (layer.type !== 'symbol') return layer;
+  const textField = layer.layout?.['text-field'];
+  if (textField === undefined || !JSON.stringify(textField).includes('"name_en"')) return layer;
+  return { ...layer, layout: { ...layer.layout, 'text-field': POLISH_NAME } };
+}
+
+function restyle(original: LayerSpecification): LayerSpecification {
+  const layer = polishLabels(original);
   if (HIDDEN_LAYER_PATTERNS.some((re) => re.test(layer.id))) return hide(layer);
   if (layer.type === 'line' && ROAD_LINE.test(layer.id)) {
     return {

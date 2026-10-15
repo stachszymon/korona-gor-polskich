@@ -47,9 +47,9 @@ describe('peaksToGeoJSON', () => {
     });
     expect(fc.type).toBe('FeatureCollection');
     expect(fc.features.map((f) => f.properties)).toEqual([
-      { id: 'babia-gora', label: 'Babia Góra\n1725 m', status: 'done' },
-      { id: 'rysy', label: 'Rysy\n2499 m', status: 'planned' },
-      { id: 'sniezka', label: 'Śnieżka\n1603 m', status: 'todo' },
+      { id: 'babia-gora', name: 'Babia Góra', elevation: 1725, label: 'Babia Góra\n1725 m', status: 'done' },
+      { id: 'rysy', name: 'Rysy', elevation: 2499, label: 'Rysy\n2499 m', status: 'planned' },
+      { id: 'sniezka', name: 'Śnieżka', elevation: 1603, label: 'Śnieżka\n1603 m', status: 'todo' },
     ]);
     expect(fc.features[0]?.geometry).toEqual({ type: 'Point', coordinates: [19.5294, 49.5732] });
   });
@@ -131,7 +131,21 @@ describe('overlayLayers', () => {
     expect(JSON.stringify(byId['peaks']?.paint)).toContain('#2e7d32');
     expect(JSON.stringify(byId['peaks']?.paint)).toContain('#f9a825');
     expect(JSON.stringify(byId['peaks']?.paint)).toContain('#c62828');
-    expect(byId['peak-labels']?.layout).toMatchObject({ 'text-field': ['get', 'label'] });
+  });
+
+  it('keeps overview peak labels legible: no overlap, higher peaks first, elevation only when zoomed in', () => {
+    const labels = overlayLayers().find((l) => l.id === 'peak-labels');
+    expect(labels?.type).toBe('symbol');
+    expect(labels?.layout).toMatchObject({
+      'text-field': ['step', ['zoom'], ['get', 'name'], 9, ['get', 'label']],
+      'text-allow-overlap': false,
+      'text-optional': true,
+      'symbol-sort-key': ['-', ['get', 'elevation']],
+      'text-variable-anchor': ['bottom', 'top', 'left', 'right'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 6, 11, 10, 15],
+    });
+    expect(labels?.layout).toHaveProperty('text-radial-offset');
+    expect(labels?.layout).not.toHaveProperty('text-offset');
   });
 });
 

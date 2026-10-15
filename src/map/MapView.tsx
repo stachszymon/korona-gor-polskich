@@ -4,6 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { MapLayerMouseEvent, StyleSpecification } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 import type { PeakDetail, PeakSummary } from '../data/schema';
+import { frameRoute } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
 import {
@@ -29,6 +30,8 @@ export type MapViewProps = {
   cursor: [number, number] | null;
   onPeakClick(id: string): void;
   onTileError(): void;
+  /** The map could not be created (e.g. the WebGL context failed despite the probe). */
+  onMapError(): void;
 };
 
 /** Used when the Liberty style cannot be fetched: terrain, hillshade and our overlays still work. */
@@ -44,6 +47,10 @@ type Position = [number, number];
 /** Rough view of southern Poland, so the first tiles are not the whole world. */
 const START_CENTER: Position = [19, 50];
 const START_ZOOM = 6.5;
+/** Camera for a selected route: tilted enough for relief, flat enough to keep the whole route in view. */
+const ROUTE_PITCH = 48;
+const ROUTE_PADDING = 60;
+const ROUTE_EASE_MS = 1200;
 const ZOOM_OUT_STEP = 0.1;
 const MAX_ZOOM_OUT_STEPS = 30;
 
@@ -103,15 +110,15 @@ function keepInView(map: maplibregl.Map, bounds: [Position, Position], padding: 
   for (let step = 0; step < MAX_ZOOM_OUT_STEPS && !visible(); step++) map.setZoom(map.getZoom() - ZOOM_OUT_STEP);
 }
 
-export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError }: MapViewProps) {
+export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError, onMapError }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
 
   // Latest values for the long-lived map event handlers and the one-off camera moves.
-  const latest = useRef({ peaks, onPeakClick, onTileError });
+  const latest = useRef({ peaks, onPeakClick, onTileError, onMapError });
   useEffect(() => {
-    latest.current = { peaks, onPeakClick, onTileError };
+    latest.current = { peaks, onPeakClick, onTileError, onMapError };
   });
   const tileErrorReported = useRef(false);
   const initialViewDone = useRef(false);
@@ -126,35 +133,47 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
       if (cancelled) return;
       if (failed) reportTileError();
 
-      // The bundler inlines maplibre-gl, so its default worker location (next to the module) does not exist.
-      maplibregl.setWorkerUrl(workerUrl);
-      map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 50, maxPitch: 80, canvasContextAttributes: { antialias: true } });
-      mapRef.current = map;
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+      try {
+        // The bundler inlines maplibre-gl, so its default worker location (next to the module) does not exist.
+        maplibregl.setWorkerUrl(workerUrl);
+        map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 50, maxPitch: 80, canvasContextAttributes: { antialias: true } });
+        mapRef.current = map;
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
-      map.on('error', (event) => {
-        const { sourceId, tile } = event as unknown as { sourceId?: string; tile?: unknown };
-        if (sourceId !== undefined || tile !== undefined) reportTileError();
-      });
-      map.on('click', 'peaks', (event: MapLayerMouseEvent) => {
-        const id: unknown = event.features?.[0]?.properties?.['id'];
-        if (typeof id === 'string') latest.current.onPeakClick(id);
-      });
-      map.on('mouseenter', 'peaks', () => {
-        if (map) map.getCanvas().style.cursor = 'pointer';
-      });
-      map.on('mouseleave', 'peaks', () => {
-        if (map) map.getCanvas().style.cursor = '';
-      });
-      map.on('load', () => {
-        if (!map) return;
-        map.addSource('contours', contourSourceSpec(getDemSource()));
-        const anchor = firstSymbolLayerId(map.getStyle().layers);
-        for (const layer of contourLayers()) map.addLayer(layer, anchor);
-        for (const [id, spec] of Object.entries(overlaySources())) map.addSource(id, spec);
-        for (const layer of overlayLayers()) map.addLayer(layer);
-        setReady(true);
-      });
+        map.on('error', (event) => {
+          const { sourceId, tile } = event as unknown as { sourceId?: string; tile?: unknown };
+          if (sourceId !== undefined || tile !== undefined) reportTileError();
+        });
+        map.on('click', 'peaks', (event: MapLayerMouseEvent) => {
+          const id: unknown = event.features?.[0]?.properties?.['id'];
+          if (typeof id === 'string') latest.current.onPeakClick(id);
+        });
+        map.on('mouseenter', 'peaks', () => {
+          if (map) map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', 'peaks', () => {
+          if (map) map.getCanvas().style.cursor = '';
+        });
+        map.on('load', () => {
+          if (!map) return;
+          map.addSource('contours', contourSourceSpec(getDemSource()));
+          const anchor = firstSymbolLayerId(map.getStyle().layers);
+          for (const layer of contourLayers()) map.addLayer(layer, anchor);
+          for (const [id, spec] of Object.entries(overlaySources())) map.addSource(id, spec);
+          for (const layer of overlayLayers()) map.addLayer(layer);
+          setReady(true);
+        });
+      } catch {
+        // Map construction can still fail after the WebGL probe (context limits, driver issues).
+        try {
+          map?.remove();
+        } catch {
+          // The half-built map is discarded either way.
+        }
+        map = null;
+        mapRef.current = null;
+        latest.current.onMapError();
+      }
     });
 
     function reportTileError() {
@@ -207,8 +226,7 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
     if (!ready || !map) return;
     (map.getSource('route') as maplibregl.GeoJSONSource | undefined)?.setData(routeToGeoJSON(route));
     map.setPaintProperty('trails', 'line-opacity', trailsOpacity(route !== null));
-    const bounds = route ? boundsOf(route.geometry.coordinates) : null;
-    if (bounds) map.fitBounds(bounds, { padding: 60, pitch: 60 });
+    if (route) frameRoute(map, route.geometry.coordinates, { padding: ROUTE_PADDING, pitch: ROUTE_PITCH, duration: ROUTE_EASE_MS });
   }, [ready, route]);
 
   const cursorLon = cursor?.[0];

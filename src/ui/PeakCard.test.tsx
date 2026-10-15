@@ -52,16 +52,16 @@ describe('PeakCard', () => {
     expect(screen.getByText(/Beskid Żywiecki/)).toBeInTheDocument();
   });
 
-  it('shows three routes with distance, ascent and duration', () => {
+  it('shows three routes with one-way (to the summit) distance, ascent and duration', () => {
     renderCard();
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(3);
     expect(screen.getByRole('button', { name: /Z Zawoi Markowej/ })).toBeInTheDocument();
     const first = items.at(0) as HTMLElement;
     expect(within(first).getByText('Start: Zawoja Markowa')).toBeInTheDocument();
-    expect(within(first).getByText('7,4 km')).toBeInTheDocument();
+    expect(within(first).getByText('7,4 km na szczyt')).toBeInTheDocument();
     expect(within(first).getByText('↑ 980 m')).toBeInTheDocument();
-    expect(within(first).getByText('ok. 3 h 30 min (szacunkowo)')).toBeInTheDocument();
+    expect(within(first).getByText('ok. 3 h 30 min na szczyt (szacunkowo)')).toBeInTheDocument();
     expect(first.querySelectorAll('.route-list__stripe')).toHaveLength(2);
   });
 
@@ -125,6 +125,15 @@ describe('PeakCard', () => {
         date: '2026-08-15',
         note: 'Piękna pogoda',
       });
+    });
+
+    it('date fields are limited to the years 1900–2100', async () => {
+      renderCard({ entry: { status: 'done' } });
+      expect(screen.getByLabelText('Data')).toHaveAttribute('min', '1900-01-01');
+      expect(screen.getByLabelText('Data')).toHaveAttribute('max', '2100-12-31');
+      await userEvent.click(screen.getByRole('button', { name: 'Planuję' }));
+      expect(screen.getByLabelText('Planowana data')).toHaveAttribute('min', '1900-01-01');
+      expect(screen.getByLabelText('Planowana data')).toHaveAttribute('max', '2100-12-31');
     });
 
     it('note field is limited to 500 characters', () => {
