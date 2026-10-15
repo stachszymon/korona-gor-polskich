@@ -102,6 +102,63 @@ describe('useProgress', () => {
     expect(result.current.progress).toEqual(next);
   });
 
+  it('does not overwrite another tab\'s change after its storage event (A from tab 2, then B here)', () => {
+    const { result } = renderHook(() => useProgress());
+    const fromOtherTab: Progress = {
+      version: 1,
+      updatedAt: '2026-10-16T08:00:00Z',
+      peaks: { a: { status: 'done' } },
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fromOtherTab));
+    fireStorage(STORAGE_KEY, JSON.stringify(fromOtherTab));
+    act(() => {
+      result.current.setStatus('b', { status: 'planned' });
+    });
+    expect(Object.keys(reload().peaks).sort()).toEqual(['a', 'b']);
+    expect(Object.keys(result.current.progress.peaks).sort()).toEqual(['a', 'b']);
+  });
+
+  it('does not overwrite another tab\'s change even when its storage event has not arrived yet', () => {
+    const { result } = renderHook(() => useProgress());
+    const fromOtherTab: Progress = {
+      version: 1,
+      updatedAt: '2026-10-16T08:00:00Z',
+      peaks: { a: { status: 'done' } },
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fromOtherTab));
+    act(() => {
+      result.current.setStatus('b', { status: 'planned' });
+    });
+    expect(Object.keys(reload().peaks).sort()).toEqual(['a', 'b']);
+  });
+
+  it.each([
+    ['corrupt JSON', 'garbage{'],
+    ['newer version', JSON.stringify({ version: 2, updatedAt: '2026-10-16T08:00:00Z', peaks: {} })],
+  ])('stops writing when a storage event brings %s and the backup fails', (_name, raw) => {
+    saveProgress(localStorage, stored());
+    const { result } = renderHook(() => useProgress());
+    const realSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key.includes('.corrupt-')) throw new DOMException('full', 'QuotaExceededError');
+      realSetItem.call(this, key, value);
+    });
+    localStorage.setItem(STORAGE_KEY, raw);
+    fireStorage(STORAGE_KEY, raw);
+    expect(result.current.recoveredCorrupt).toBe(true);
+    expect(result.current.persistent).toBe(false);
+    act(() => {
+      result.current.setStatus('b', { status: 'done' });
+    });
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    expect(result.current.progress.peaks['b']).toEqual({ status: 'done' });
+    expect(result.current.persistent).toBe(false);
+  });
+
   it('ignores storage events for other keys', () => {
     const { result } = renderHook(() => useProgress());
     act(() => {

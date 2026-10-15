@@ -39,51 +39,63 @@ export function useProgress(): {
   replace(p: Progress): void;
 } {
   const [initial] = useState(init);
-  const storage = initial.storage;
   const [state, setState] = useState<State>(initial.state);
   // Mirror of the latest state so that several calls within one tick compose correctly.
-  const latest = useRef<State>(state);
+  const latest = useRef<State>(initial.state);
+  // Becomes null once writing must stop (see `syncFromStorage`).
+  const storageRef = useRef<Storage | null>(initial.storage);
+
+  const publish = useCallback((next: State) => {
+    latest.current = next;
+    setState(next);
+  }, []);
+
+  /**
+   * Re-reads storage so that a write never builds on stale state from before another tab's
+   * change. If the stored data is unreadable and its backup cannot be written, writing stops
+   * for good so the original is never overwritten.
+   */
+  const syncFromStorage = useCallback(() => {
+    const storage = storageRef.current;
+    if (!storage) return;
+    const loaded = loadProgress(storage, now);
+    if (!loaded.persistent) storageRef.current = null;
+    // A failed read (not corrupt data) says nothing about the stored progress: keep ours.
+    const keepCurrent = !loaded.persistent && !loaded.recoveredCorrupt;
+    publish({
+      progress: keepCurrent ? latest.current.progress : loaded.progress,
+      persistent: loaded.persistent,
+      recoveredCorrupt: latest.current.recoveredCorrupt || loaded.recoveredCorrupt,
+    });
+  }, [publish]);
 
   const commit = useCallback(
     (progress: Progress) => {
-      const saved = saveProgress(storage, progress);
-      const next: State = {
-        progress,
-        persistent: saved,
-        recoveredCorrupt: latest.current.recoveredCorrupt,
-      };
-      latest.current = next;
-      setState(next);
+      const saved = saveProgress(storageRef.current, progress);
+      publish({ progress, persistent: saved, recoveredCorrupt: latest.current.recoveredCorrupt });
     },
-    [storage],
+    [publish],
   );
 
   const setStatus = useCallback(
     (peakId: string, entry: PeakProgress | null) => {
+      syncFromStorage();
       commit(setPeakStatus(latest.current.progress, peakId, entry, now().toISOString()));
     },
-    [commit],
+    [syncFromStorage, commit],
   );
 
   const replace = useCallback((p: Progress) => commit(p), [commit]);
 
   useEffect(() => {
-    if (!storage) return;
     const onStorage = (e: StorageEvent) => {
       if (e.key !== null && e.key !== STORAGE_KEY) return;
-      if (e.storageArea && e.storageArea !== storage) return;
-      const loaded = loadProgress(storage, now);
-      const next: State = {
-        progress: loaded.progress,
-        persistent: loaded.persistent,
-        recoveredCorrupt: latest.current.recoveredCorrupt || loaded.recoveredCorrupt,
-      };
-      latest.current = next;
-      setState(next);
+      if (e.storageArea && e.storageArea !== storageRef.current) return;
+      syncFromStorage();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [storage]);
+  }, [syncFromStorage]);
 
   return {
     progress: state.progress,
