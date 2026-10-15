@@ -33,6 +33,12 @@ describe('slugify', () => {
     expect(slugify('ąćęłńóśźż ĄĆĘŁŃÓŚŹŻ')).toBe('acelnoszz-acelnoszz');
   });
 
+  it('strips combining marks of non-Polish letters instead of turning them into dashes', () => {
+    expect(slugify('Štrbské Pleso')).toBe('strbske-pleso');
+    expect(slugify('Zürich')).toBe('zurich');
+    expect(slugify('Štrbské Pleso'.normalize('NFD'))).toBe('strbske-pleso');
+  });
+
   it('trims leading and trailing separators', () => {
     expect(slugify('  --Kasprowy Wierch!! ')).toBe('kasprowy-wierch');
   });
@@ -103,8 +109,34 @@ describe('findTrailheads', () => {
       poi(19.1, 50.0, { amenity: 'parking', name: 'Parking' }),
       poi(19.2, 50.0, { amenity: 'parking', name: 'Parking 2' }),
     ]);
-    const ids = result.map((t) => t.id);
-    expect(new Set(ids).size).toBe(3);
+    expect(result.map((t) => t.id)).toEqual(['parking', 'parking-2', 'parking-2-2']);
+  });
+
+  it('treats a whitespace-only name as unnamed and borrows the nearest place name', () => {
+    const graph = graphOf(A);
+    const result = findTrailheads(graph, [
+      poi(19.0, 50.0, { amenity: 'parking', name: '   ' }),
+      poi(19.001, 50.0, { place: 'village', name: 'Zawoja' }),
+    ]);
+    const th = result.find((t) => t.kind === 'parking');
+    expect(th?.name).toBe('Zawoja');
+  });
+
+  it('trims surrounding whitespace from names', () => {
+    const graph = graphOf(A);
+    const result = findTrailheads(graph, [poi(19.0, 50.0, { amenity: 'parking', name: '  Palenica  ' })]);
+    expect(result[0]).toMatchObject({ name: 'Palenica', id: 'palenica' });
+  });
+
+  it('borrows names only from village, town and hamlet POIs', () => {
+    const graph = graphOf(A);
+    const parking = poi(19.0, 50.0, { amenity: 'parking' });
+    const suburb = poi(19.0005, 50.0, { place: 'suburb', name: 'Osiedle' }); // nearest, wrong type
+    const hamlet = poi(19.01, 50.0, { place: 'hamlet', name: 'Przysiółek' });
+    const result = findTrailheads(graph, [parking, suburb, hamlet]);
+    expect(result.find((t) => t.kind === 'parking')?.name).toBe('Przysiółek');
+    // with no village/town/hamlet at all the unnamed parking is dropped
+    expect(findTrailheads(graph, [parking, suburb]).filter((t) => t.kind === 'parking')).toEqual([]);
   });
 
   it('kind mapping: amenity=parking→parking, railway=station|halt→station, highway=bus_stop→bus_stop, place=*→place, manual→manual', () => {

@@ -46,6 +46,7 @@ export function slugify(name: string): string {
     .toLowerCase()
     .replace(/[ąćęłńóśźż]/g, (c) => POLISH_TO_ASCII[c] ?? c)
     .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
@@ -67,6 +68,11 @@ function kindOf(tags: Record<string, string> | undefined): TrailheadKind | null 
   if (tags['place'] !== undefined) return 'place';
   return null;
 }
+
+const SETTLEMENT_PLACES = new Set(['village', 'town', 'hamlet']);
+
+/** Trimmed name; a missing or whitespace-only name becomes the empty string (= unnamed). */
+const cleanName = (name: string | undefined): string => (name ?? '').trim();
 
 interface Candidate {
   name: string;
@@ -104,15 +110,23 @@ export function findTrailheads(
 ): Trailhead[] {
   const maxDistM = opts.maxDistM ?? DEFAULT_MAX_DIST_M;
 
-  const places = pois.filter((p) => p.tags?.['place'] !== undefined && p.tags['name']);
+  // Names are only borrowed from settlements (miejscowość), not from suburbs, regions etc.
+  const places: { name: string; pos: LonLat }[] = [];
+  for (const p of pois) {
+    const place = p.tags?.['place'];
+    const name = cleanName(p.tags?.['name']);
+    if (name && place !== undefined && SETTLEMENT_PLACES.has(place)) {
+      places.push({ name, pos: [p.lon, p.lat] });
+    }
+  }
   const nearestPlaceName = (p: LonLat): string | undefined => {
     let best: string | undefined;
     let bestDist = Infinity;
     for (const place of places) {
-      const d = haversineM(p, [place.lon, place.lat]);
+      const d = haversineM(p, place.pos);
       if (d < bestDist) {
         bestDist = d;
-        best = place.tags?.['name'];
+        best = place.name;
       }
     }
     return best;
@@ -138,12 +152,13 @@ export function findTrailheads(
   for (const poi of pois) {
     const kind = kindOf(poi.tags);
     if (kind === null) continue;
-    const name = poi.tags?.['name'] || nearestPlaceName([poi.lon, poi.lat]);
+    const name = cleanName(poi.tags?.['name']) || nearestPlaceName([poi.lon, poi.lat]);
     if (!name) continue;
     consider(name, kind, poi.lon, poi.lat);
   }
   for (const m of opts.manual ?? []) {
-    consider(m.name, 'manual', m.lon, m.lat);
+    const name = cleanName(m.name);
+    if (name) consider(name, 'manual', m.lon, m.lat);
   }
 
   const sorted = [...byVertex.values()].sort(
