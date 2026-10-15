@@ -9,6 +9,8 @@ type Handler = (event: Record<string, unknown>) => void;
 const h = vi.hoisted(() => {
   class FakeMap {
     static instances: FakeMap[] = [];
+    /** When set, the constructor throws like a failed WebGL context creation. */
+    static failNext = false;
     options: Record<string, unknown>;
     sources: Record<string, unknown> = {};
     layers: { spec: { id: string }; beforeId?: string }[] = [];
@@ -17,6 +19,10 @@ const h = vi.hoisted(() => {
     paint: Record<string, unknown> = {};
     removed = false;
     constructor(options: Record<string, unknown>) {
+      if (FakeMap.failNext) {
+        FakeMap.failNext = false;
+        throw new Error('Failed to initialize WebGL');
+      }
       this.options = options;
       FakeMap.instances.push(this);
     }
@@ -183,6 +189,7 @@ const baseProps = (over: Partial<Props> = {}): Props => ({
   cursor: null,
   onPeakClick: vi.fn(),
   onTileError: vi.fn(),
+  onMapError: vi.fn(),
   ...over,
 });
 
@@ -342,6 +349,15 @@ describe('MapView', () => {
     const style = currentMap().options.style as StyleSpecification;
     expect(style.terrain).toBeDefined();
     expect(props.onTileError).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a map that cannot be created instead of throwing', async () => {
+    h.FakeMap.failNext = true;
+    const props = baseProps();
+    render(<MapView {...props} />);
+    await waitFor(() => expect(props.onMapError).toHaveBeenCalledTimes(1));
+    expect(h.FakeMap.instances).toHaveLength(0);
+    expect(props.onTileError).not.toHaveBeenCalled();
   });
 
   it('removes the map on unmount', async () => {

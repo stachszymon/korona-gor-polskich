@@ -30,6 +30,8 @@ export type MapViewProps = {
   cursor: [number, number] | null;
   onPeakClick(id: string): void;
   onTileError(): void;
+  /** The map could not be created (e.g. the WebGL context failed despite the probe). */
+  onMapError(): void;
 };
 
 /** Used when the Liberty style cannot be fetched: terrain, hillshade and our overlays still work. */
@@ -108,15 +110,15 @@ function keepInView(map: maplibregl.Map, bounds: [Position, Position], padding: 
   for (let step = 0; step < MAX_ZOOM_OUT_STEPS && !visible(); step++) map.setZoom(map.getZoom() - ZOOM_OUT_STEP);
 }
 
-export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError }: MapViewProps) {
+export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError, onMapError }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
 
   // Latest values for the long-lived map event handlers and the one-off camera moves.
-  const latest = useRef({ peaks, onPeakClick, onTileError });
+  const latest = useRef({ peaks, onPeakClick, onTileError, onMapError });
   useEffect(() => {
-    latest.current = { peaks, onPeakClick, onTileError };
+    latest.current = { peaks, onPeakClick, onTileError, onMapError };
   });
   const tileErrorReported = useRef(false);
   const initialViewDone = useRef(false);
@@ -131,35 +133,47 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
       if (cancelled) return;
       if (failed) reportTileError();
 
-      // The bundler inlines maplibre-gl, so its default worker location (next to the module) does not exist.
-      maplibregl.setWorkerUrl(workerUrl);
-      map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 50, maxPitch: 80, canvasContextAttributes: { antialias: true } });
-      mapRef.current = map;
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+      try {
+        // The bundler inlines maplibre-gl, so its default worker location (next to the module) does not exist.
+        maplibregl.setWorkerUrl(workerUrl);
+        map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 50, maxPitch: 80, canvasContextAttributes: { antialias: true } });
+        mapRef.current = map;
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
-      map.on('error', (event) => {
-        const { sourceId, tile } = event as unknown as { sourceId?: string; tile?: unknown };
-        if (sourceId !== undefined || tile !== undefined) reportTileError();
-      });
-      map.on('click', 'peaks', (event: MapLayerMouseEvent) => {
-        const id: unknown = event.features?.[0]?.properties?.['id'];
-        if (typeof id === 'string') latest.current.onPeakClick(id);
-      });
-      map.on('mouseenter', 'peaks', () => {
-        if (map) map.getCanvas().style.cursor = 'pointer';
-      });
-      map.on('mouseleave', 'peaks', () => {
-        if (map) map.getCanvas().style.cursor = '';
-      });
-      map.on('load', () => {
-        if (!map) return;
-        map.addSource('contours', contourSourceSpec(getDemSource()));
-        const anchor = firstSymbolLayerId(map.getStyle().layers);
-        for (const layer of contourLayers()) map.addLayer(layer, anchor);
-        for (const [id, spec] of Object.entries(overlaySources())) map.addSource(id, spec);
-        for (const layer of overlayLayers()) map.addLayer(layer);
-        setReady(true);
-      });
+        map.on('error', (event) => {
+          const { sourceId, tile } = event as unknown as { sourceId?: string; tile?: unknown };
+          if (sourceId !== undefined || tile !== undefined) reportTileError();
+        });
+        map.on('click', 'peaks', (event: MapLayerMouseEvent) => {
+          const id: unknown = event.features?.[0]?.properties?.['id'];
+          if (typeof id === 'string') latest.current.onPeakClick(id);
+        });
+        map.on('mouseenter', 'peaks', () => {
+          if (map) map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', 'peaks', () => {
+          if (map) map.getCanvas().style.cursor = '';
+        });
+        map.on('load', () => {
+          if (!map) return;
+          map.addSource('contours', contourSourceSpec(getDemSource()));
+          const anchor = firstSymbolLayerId(map.getStyle().layers);
+          for (const layer of contourLayers()) map.addLayer(layer, anchor);
+          for (const [id, spec] of Object.entries(overlaySources())) map.addSource(id, spec);
+          for (const layer of overlayLayers()) map.addLayer(layer);
+          setReady(true);
+        });
+      } catch {
+        // Map construction can still fail after the WebGL probe (context limits, driver issues).
+        try {
+          map?.remove();
+        } catch {
+          // The half-built map is discarded either way.
+        }
+        map = null;
+        mapRef.current = null;
+        latest.current.onMapError();
+      }
     });
 
     function reportTileError() {

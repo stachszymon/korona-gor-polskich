@@ -11,6 +11,7 @@ vi.mock('./map/MapView', () => ({
     cursor: [number, number] | null;
     onPeakClick(id: string): void;
     onTileError(): void;
+    onMapError(): void;
   }) => (
     <div data-testid="map" data-cursor={JSON.stringify(props.cursor)}>
       <button type="button" onClick={() => props.onPeakClick('babia-gora')}>
@@ -18,6 +19,9 @@ vi.mock('./map/MapView', () => ({
       </button>
       <button type="button" onClick={props.onTileError}>
         simulate tile error
+      </button>
+      <button type="button" onClick={props.onMapError}>
+        simulate map error
       </button>
     </div>
   ),
@@ -128,6 +132,16 @@ describe('App', () => {
     expect(screen.queryByTestId('map')).not.toBeInTheDocument();
     const list = await screen.findByRole('region', { name: 'Lista szczytów' });
     expect(within(list).getByRole('button', { name: /Rysy/ })).toBeInTheDocument();
+  });
+
+  it('falls back to the no-WebGL message when the map cannot be created', async () => {
+    const { user } = renderApp({ supportsWebGL: () => true });
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(screen.getByRole('button', { name: 'simulate map error' }));
+
+    expect(screen.getByText('Twoja przeglądarka nie obsługuje mapy 3D')).toBeInTheDocument();
+    expect(screen.queryByTestId('map')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Lista szczytów' })).toBeInTheDocument();
   });
 
   it('index load failure shows retry which reloads', async () => {

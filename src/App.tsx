@@ -26,7 +26,10 @@ const EDIT_DEBOUNCE_MS = 400;
 
 export function App({ deps = {} }: { deps?: AppDeps }) {
   const { fetchFn, supportsWebGL = detectWebGL } = deps;
-  const [webgl] = useState(supportsWebGL);
+  const [webglSupported] = useState(supportsWebGL);
+  // The map can still fail to start after the probe; then the app behaves as without WebGL.
+  const [mapFailed, setMapFailed] = useState(false);
+  const webgl = webglSupported && !mapFailed;
 
   const { status: indexStatus, index, retry: retryIndex } = usePeaksIndex(fetchFn);
   const { progress, persistent, recoveredCorrupt, setStatus, replace } = useProgress();
@@ -147,6 +150,7 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
                 cursor={cursor}
                 onPeakClick={selectPeak}
                 onTileError={() => setTileError(true)}
+                onMapError={() => setMapFailed(true)}
               />
             </div>
           ) : (
