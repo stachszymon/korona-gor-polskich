@@ -6,6 +6,16 @@ const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, im
 
 // No test may reach the network: every external request is answered locally or aborted.
 test.beforeEach(async ({ page, baseURL }) => {
+  // CI runners render WebGL in software, and the 3D terrain map then starves the main thread so
+  // badly that clicks and reloads time out. These tests cover the list/card/progress UI, which is
+  // independent of the map, so they run against the app's own no-WebGL fallback.
+  await page.addInitScript(`{
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+      return String(type).startsWith('webgl') ? null : getContext.call(this, type, ...args);
+    };
+  }`);
+
   const origin = new URL(baseURL ?? 'http://localhost').origin;
   const styleJson = await readFile(fixture('style.json'));
   const flatTile = await readFile(fixture('flat-tile.png'));
@@ -45,6 +55,7 @@ async function openBabiaGora(page: Page) {
 test('clicking Babia Góra in the list opens its card with at least one route', async ({ page }) => {
   const card = await openBabiaGora(page);
 
+  await expect(page.getByText('Twoja przeglądarka nie obsługuje mapy 3D')).toBeVisible();
   await expect(card.getByRole('heading', { name: 'Babia Góra' })).toBeVisible();
   const routes = card.getByRole('region', { name: 'Trasy' }).getByRole('button', { pressed: false });
   await expect(routes.first()).toBeVisible();
