@@ -8,7 +8,7 @@ import {
   type TrailFeature,
 } from '../../src/data/schema';
 import { createDemSampler, type FetchTile } from './elevation';
-import { roundCoord, simplifyLine, type LonLat } from './geo';
+import { clipLineToRadius, roundCoord, simplifyLine, type LonLat } from './geo';
 import { buildTrailGraph, nearestVertex, type SkippedRelation, type TrailPart } from './graph';
 import {
   applyRenames,
@@ -41,7 +41,15 @@ export interface PeakReport {
   /** Hiking relations returned by Overpass (before colour filtering). */
   relations: number;
   skipped: SkippedRelation[];
-  routes: { id: string; name: string; distanceKm: number; durationMin: number }[];
+  routes: {
+    id: string;
+    name: string;
+    /** Trailhead name and kind, e.g. `Zawoja Markowa (parking)`. */
+    trailhead: string;
+    distanceKm: number;
+    ascentM: number;
+    durationMin: number;
+  }[];
   sizeBytes: number;
   warnings: string[];
   errors: string[];
@@ -113,7 +121,15 @@ export async function buildPeak(
   report.relations = relations.length;
   report.skipped = skipped;
 
-  const features = trails.map(toTrailFeature).filter((f): f is TrailFeature => f !== null);
+  // Long-distance relations reach far beyond the area of interest; only the part within the
+  // query radius is drawn, which keeps peak files small. Routes use the unclipped graph.
+  const features = trails
+    .flatMap((part) =>
+      clipLineToRadius(part.coords, [src.lon, src.lat], QUERY_RADIUS_M).map((coords) =>
+        toTrailFeature({ ...part, coords }),
+      ),
+    )
+    .filter((f): f is TrailFeature => f !== null);
   let routes: PeakDetail['routes'] = [];
 
   for (const key of Object.keys(peakOverrides?.rename ?? {})) {
@@ -183,7 +199,9 @@ export async function buildPeak(
   report.routes = routes.map((r) => ({
     id: r.id,
     name: r.name,
+    trailhead: `${r.trailhead.name} (${r.trailhead.kind})`,
     distanceKm: r.distanceKm,
+    ascentM: r.ascentM,
     durationMin: r.durationMin,
   }));
   report.sizeBytes = Buffer.byteLength(serializeDetail(detail));
@@ -351,7 +369,7 @@ export function formatReport(reports: PeakReport[]): string {
     lines.push(`  routes: ${r.routes.length}`);
     for (const route of r.routes) {
       lines.push(
-        `    ${route.id}  ${route.name}  ${route.distanceKm} km  ${route.durationMin} min`,
+        `    ${route.id}  ${route.name}  ${route.distanceKm} km  ascent ${route.ascentM} m  ${route.durationMin} min  from ${route.trailhead}`,
       );
     }
     lines.push(`  size: ${r.sizeBytes} bytes`);

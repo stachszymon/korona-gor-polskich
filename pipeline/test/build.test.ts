@@ -148,6 +148,35 @@ describe('buildPeak', () => {
     expect(detail.trails.features.some((f) => f.properties.name !== undefined)).toBe(true);
   });
 
+  it('clips the drawn trails to the 10 km query radius around the summit', async () => {
+    // A long-distance trail running 30 km north from the summit.
+    const longTrail: OverpassRelation = {
+      type: 'relation',
+      id: 99_000_001,
+      tags: { type: 'route', route: 'hiking', 'osmc:symbol': 'blue:white:blue_bar', name: 'Daleki szlak' },
+      members: [
+        {
+          type: 'way',
+          ref: 99_000_002,
+          role: '',
+          geometry: Array.from({ length: 31 }, (_, km) => ({ lat: BABIA.lat + km / 111.2, lon: BABIA.lon })),
+        },
+      ],
+    };
+    const { deps } = makeDeps([BABIA], { extraRelations: [longTrail] });
+    const { detail } = await buildPeak(BABIA, deps);
+
+    for (const f of detail.trails.features) {
+      for (const [lon, lat] of f.geometry.coordinates) {
+        expect(haversineM([lon, lat], [BABIA.lon, BABIA.lat])).toBeLessThanOrEqual(10_002);
+      }
+    }
+    const far = detail.trails.features.find((f) => f.properties.name === 'Daleki szlak');
+    expect(far).toBeDefined();
+    const end = far!.geometry.coordinates.at(-1)!;
+    expect(haversineM([end[0], end[1]], [BABIA.lon, BABIA.lat])).toBeGreaterThan(9_990);
+  });
+
   it('reports skipped relations with their reason', async () => {
     const { deps } = makeDeps([BABIA]);
     const { report } = await buildPeak(BABIA, deps);
@@ -411,8 +440,9 @@ describe('buildAll', () => {
       ref,
       role: '',
       geometry: Array.from({ length: 1000 }, (_, i) => ({
-        lat: 49.6 + ref * 0.01 + i * 0.000005,
-        lon: 19.6 + (i % 2) * 0.0002,
+        // inside the 10 km radius (drawn trails are clipped to it)
+        lat: 49.6 + i * 0.000005,
+        lon: 19.6 + ref * 0.001 + (i % 2) * 0.0002,
       })),
     });
     const big: OverpassRelation = {
@@ -451,7 +481,16 @@ describe('formatReport', () => {
     peakId: 'babia-gora',
     relations: 7,
     skipped: [{ id: 15482388, name: 'Via Slovakia', reason: 'no-color' }],
-    routes: [{ id: 'babia-gora--zawoja', name: 'Zawoja → Babia Góra', distanceKm: 7.4, durationMin: 210 }],
+    routes: [
+      {
+        id: 'babia-gora--zawoja',
+        name: 'Zawoja → Babia Góra',
+        trailhead: 'Zawoja Markowa (parking)',
+        distanceKm: 7.4,
+        ascentM: 980,
+        durationMin: 210,
+      },
+    ],
     sizeBytes: 12_345,
     warnings: ['uwaga'],
     errors: ['błąd'],
@@ -465,7 +504,9 @@ describe('formatReport', () => {
     expect(text).toContain('Via Slovakia');
     expect(text).toContain('babia-gora--zawoja');
     expect(text).toContain('7.4 km');
+    expect(text).toContain('ascent 980 m');
     expect(text).toContain('210 min');
+    expect(text).toContain('from Zawoja Markowa (parking)');
     expect(text).toContain('12345');
     expect(text).toContain('WARNING: uwaga');
     expect(text).toContain('ERROR: błąd');

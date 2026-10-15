@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clipLineToRadius,
   haversineM,
   lineLengthM,
   resample,
@@ -131,5 +132,47 @@ describe('roundCoord', () => {
 
   it('accepts a custom digit count', () => {
     expect(roundCoord(19.529412345, 2)).toBe(19.53);
+  });
+});
+
+describe('clipLineToRadius', () => {
+  const C: LonLat = [19.5, 49.5];
+  // ~1 km steps east along the parallel (1 degree of longitude ≈ 72.4 km at 49.5° N).
+  const east = (km: number): LonLat => [19.5 + km / 72.43, 49.5];
+
+  it('keeps a line that lies inside the circle unchanged', () => {
+    const line = [east(0), east(1), east(2)];
+    expect(clipLineToRadius(line, C, 5000)).toEqual([line]);
+  });
+
+  it('drops a line that lies completely outside', () => {
+    expect(clipLineToRadius([east(6), east(7)], C, 5000)).toEqual([]);
+  });
+
+  it('cuts a leaving line at the circle', () => {
+    const parts = clipLineToRadius([east(0), east(4), east(8)], C, 5000);
+    expect(parts).toHaveLength(1);
+    const part = parts[0]!;
+    expect(part.slice(0, 2)).toEqual([east(0), east(4)]);
+    expect(part).toHaveLength(3);
+    expect(haversineM(C, part[2]!)).toBeCloseTo(5000, 0);
+  });
+
+  it('splits a line that leaves and re-enters into two parts', () => {
+    const out: LonLat = [19.5 + 3 / 72.43, 49.5 + 9 / 111.2]; // ~9.5 km away
+    const parts = clipLineToRadius([east(-3), out, east(3)], C, 5000);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]![0]).toEqual(east(-3));
+    expect(parts[1]!.at(-1)).toEqual(east(3));
+    for (const part of parts) {
+      for (const p of part) expect(haversineM(C, p)).toBeLessThanOrEqual(5000.5);
+    }
+  });
+
+  it('keeps the inner piece of a segment crossing the circle twice', () => {
+    const parts = clipLineToRadius([east(-8), east(8)], C, 5000);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toHaveLength(2);
+    expect(lineLengthM(parts[0]!)).toBeCloseTo(10_000, -1);
   });
 });

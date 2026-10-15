@@ -80,3 +80,61 @@ export function roundCoord(n: number, digits = 5): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
 }
+
+/**
+ * Parts of a polyline inside the circle of `radiusM` around `center`. A line leaving the
+ * circle is cut exactly at it (interpolated point); a line that re-enters starts a new part.
+ * Uses a local equirectangular projection, accurate to centimetres at a 10 km scale.
+ */
+export function clipLineToRadius(coords: LonLat[], center: LonLat, radiusM: number): LonLat[][] {
+  const kx = toRad(1) * EARTH_RADIUS_M * Math.cos(toRad(center[1]));
+  const ky = toRad(1) * EARTH_RADIUS_M;
+  const xy = (p: LonLat): [number, number] => [(p[0] - center[0]) * kx, (p[1] - center[1]) * ky];
+  const r2 = radiusM * radiusM;
+  const lerp = (a: LonLat, b: LonLat, t: number): LonLat => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+  const parts: LonLat[][] = [];
+  let current: LonLat[] = [];
+  const close = (): void => {
+    if (current.length >= 2) parts.push(current);
+    current = [];
+  };
+
+  for (let i = 1; i < coords.length; i++) {
+    const a = coords[i - 1]!;
+    const b = coords[i]!;
+    const [ax, ay] = xy(a);
+    const [bx, by] = xy(b);
+    const aIn = ax * ax + ay * ay <= r2;
+    const bIn = bx * bx + by * by <= r2;
+    let s = 0;
+    let e = 1;
+    if (!aIn || !bIn) {
+      // |a + t (b - a)|² = r²
+      const dx = bx - ax;
+      const dy = by - ay;
+      const qa = dx * dx + dy * dy;
+      const qb = 2 * (ax * dx + ay * dy);
+      const qc = ax * ax + ay * ay - r2;
+      const disc = qb * qb - 4 * qa * qc;
+      if (qa === 0 || disc <= 0) {
+        close();
+        continue;
+      }
+      const t1 = (-qb - Math.sqrt(disc)) / (2 * qa);
+      const t2 = (-qb + Math.sqrt(disc)) / (2 * qa);
+      s = aIn ? 0 : t1;
+      e = bIn ? 1 : t2;
+      if (s >= e || e <= 0 || s >= 1) {
+        close();
+        continue;
+      }
+    }
+    if (s > 0) close();
+    if (current.length === 0) current.push(s === 0 ? a : lerp(a, b, s));
+    current.push(e === 1 ? b : lerp(a, b, e));
+    if (e < 1) close();
+  }
+  close();
+  return parts;
+}
