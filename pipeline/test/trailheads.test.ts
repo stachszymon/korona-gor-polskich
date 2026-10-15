@@ -177,6 +177,16 @@ describe('findTrailheads', () => {
     expect(findTrailheads(graph, [noTags, other, railOther])).toEqual([]);
   });
 
+  it('ignores parkings closed to the public (access=private|no|customers)', () => {
+    const graph = graphOf(A);
+    const pois = ['private', 'no', 'customers'].map((access) =>
+      poi(19.0, 50.0, { amenity: 'parking', name: `P ${access}`, access }),
+    );
+    expect(findTrailheads(graph, pois)).toEqual([]);
+    const open = poi(19.0, 50.0, { amenity: 'parking', name: 'P public', access: 'yes' });
+    expect(findTrailheads(graph, [...pois, open]).map((t) => t.name)).toEqual(['P public']);
+  });
+
   it('two POIs snapping to the same vertex keep one trailhead, preferring parking > station > bus_stop > place', () => {
     const graph = graphOf(A);
     const pois = [

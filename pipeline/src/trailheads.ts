@@ -60,9 +60,12 @@ const KIND_RANK: Record<TrailheadKind, number> = {
   place: 0,
 };
 
+/** Parkings with these `access` values are not usable by visitors. */
+const CLOSED_ACCESS = new Set(['private', 'no', 'customers']);
+
 function kindOf(tags: Record<string, string> | undefined): TrailheadKind | null {
   if (!tags) return null;
-  if (tags['amenity'] === 'parking') return 'parking';
+  if (tags['amenity'] === 'parking') return CLOSED_ACCESS.has(tags['access'] ?? '') ? null : 'parking';
   if (tags['railway'] === 'station' || tags['railway'] === 'halt') return 'station';
   if (tags['highway'] === 'bus_stop') return 'bus_stop';
   if (tags['place'] !== undefined) return 'place';
@@ -94,7 +97,7 @@ function beats(a: Candidate, b: Candidate): boolean {
 }
 
 /**
- * Trailhead candidates: parkings, stations/halts, bus stops and places that lie within
+ * Trailhead candidates: parkings (except private ones), stations/halts, bus stops and places that lie within
  * `maxDistM` of a trail vertex. One trailhead per vertex (parking > station > bus_stop > place;
  * manual points beat all of them). Unnamed POIs borrow the name of the nearest named place POI
  * and are dropped when there is none. Ids are slugs of the names, with `-2`, `-3`... for

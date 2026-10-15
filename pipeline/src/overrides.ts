@@ -17,6 +17,13 @@ const PeakOverridesSchema = z.strictObject({
   rename: z.record(z.string().regex(/^[a-z0-9-]+--[a-z0-9-]+$/), z.string().trim().min(1)).optional(),
   /** Extra starts treated like any other trailhead candidate (kind `manual`). */
   addTrailhead: z.array(ManualTrailheadSchema).optional(),
+  /**
+   * Unmarked path `[lon, lat][]` from the summit to a marked trail, for a summit that no
+   * marked trail reaches (copied from OSM). The last point must lie within 30 m of a trail.
+   */
+  summitPath: z.array(z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])).min(2).optional(),
+  /** Fewer than 3 routes, when the remaining candidates are detours nobody would walk. */
+  maxRoutes: z.number().int().min(1).max(3).optional(),
 });
 
 /** `route-overrides.json`, keyed by peakId. */

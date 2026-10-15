@@ -164,6 +164,21 @@ describe('createDemSampler', () => {
     expect(fetchTile).toHaveBeenCalledTimes(2);
   });
 
+  it('falls back to the parent tile where a tile has no data (-32768)', async () => {
+    const parentKey = `${Z - 1}/${TILE_X / 2}/${TILE_Y / 2}`;
+    const fetchTile = tiles({ [key()]: tilePng(() => -32768), [parentKey]: tilePng(() => 900) });
+    const sampler = createDemSampler(fetchTile, Z);
+    expect(await sampler.elevationAt(inTile(10.5, 10.5))).toBeCloseTo(900, 4);
+  });
+
+  it('throws when no zoom down to 10 has data at the point', async () => {
+    const empty = tilePng(() => -32768);
+    const fetchTile = vi.fn<FetchTile>().mockResolvedValue(empty);
+    const sampler = createDemSampler(fetchTile, Z);
+    await expect(sampler.elevationAt(inTile(10.5, 10.5))).rejects.toThrow(/no DEM data/);
+    expect(new Set(fetchTile.mock.calls.map(([z]) => z))).toEqual(new Set([14, 13, 12, 11, 10]));
+  });
+
   it('defaults to zoom 14', async () => {
     const sampler = createDemSampler(tiles({ [key()]: tilePng(() => 42) }));
     expect(await sampler.elevationAt(inTile(5.5, 5.5))).toBeCloseTo(42, 4);

@@ -8,8 +8,14 @@ import {
   type TrailFeature,
 } from '../../src/data/schema';
 import { createDemSampler, type FetchTile } from './elevation';
-import { roundCoord, simplifyLine, type LonLat } from './geo';
-import { buildTrailGraph, nearestVertex, type SkippedRelation, type TrailPart } from './graph';
+import { clipLineToRadius, lineLengthM, roundCoord, simplifyLine, type LonLat } from './geo';
+import {
+  addUnmarkedPath,
+  buildTrailGraph,
+  nearestVertex,
+  type SkippedRelation,
+  type TrailPart,
+} from './graph';
 import {
   applyRenames,
   excludedTrailheads,
@@ -41,7 +47,15 @@ export interface PeakReport {
   /** Hiking relations returned by Overpass (before colour filtering). */
   relations: number;
   skipped: SkippedRelation[];
-  routes: { id: string; name: string; distanceKm: number; durationMin: number }[];
+  routes: {
+    id: string;
+    name: string;
+    /** Trailhead name and kind, e.g. `Zawoja Markowa (parking)`. */
+    trailhead: string;
+    distanceKm: number;
+    ascentM: number;
+    durationMin: number;
+  }[];
   sizeBytes: number;
   warnings: string[];
   errors: string[];
@@ -51,6 +65,8 @@ export interface PeakReport {
 export const QUERY_RADIUS_M = 10_000;
 /** The summit must lie this close to a trail vertex. */
 export const SUMMIT_SNAP_M = 150;
+/** The end of an override `summitPath` must lie this close to a trail vertex. */
+export const SUMMIT_PATH_SNAP_M = 30;
 /** Larger peak files are reported as a warning. */
 export const MAX_PEAK_FILE_BYTES = 500_000;
 
@@ -113,12 +129,31 @@ export async function buildPeak(
   report.relations = relations.length;
   report.skipped = skipped;
 
-  const features = trails.map(toTrailFeature).filter((f): f is TrailFeature => f !== null);
+  // Long-distance relations reach far beyond the area of interest; only the part within the
+  // query radius is drawn, which keeps peak files small. Routes use the unclipped graph.
+  const features = trails
+    .flatMap((part) =>
+      clipLineToRadius(part.coords, [src.lon, src.lat], QUERY_RADIUS_M).map((coords) =>
+        toTrailFeature({ ...part, coords }),
+      ),
+    )
+    .filter((f): f is TrailFeature => f !== null);
   let routes: PeakDetail['routes'] = [];
 
   for (const key of Object.keys(peakOverrides?.rename ?? {})) {
     if (!key.startsWith(`${src.id}--`)) {
       report.warnings.push(`override rename "${key}": the id does not belong to peak ${src.id}`);
+    }
+  }
+
+  const summitPath = peakOverrides?.summitPath;
+  if (summitPath !== undefined) {
+    if (addUnmarkedPath(graph, summitPath, SUMMIT_PATH_SNAP_M)) {
+      report.warnings.push(
+        `summit reached by an unmarked path of ${Math.round(lineLengthM(summitPath))} m (override summitPath)`,
+      );
+    } else {
+      report.errors.push(`override summitPath: its last point is not within ${SUMMIT_PATH_SNAP_M} m of a trail`);
     }
   }
 
@@ -151,7 +186,7 @@ export async function buildPeak(
     const enriched = [];
     for (const candidate of candidates) enriched.push(await enrichRoute(candidate, sampler));
 
-    const selected = selectRoutes(enriched);
+    const selected = selectRoutes(enriched, { maxCount: peakOverrides?.maxRoutes ?? 3 });
     routes = applyRenames(
       selected.map((r) => toRoute(src.id, r, src.name)),
       deps.overrides,
@@ -183,7 +218,9 @@ export async function buildPeak(
   report.routes = routes.map((r) => ({
     id: r.id,
     name: r.name,
+    trailhead: `${r.trailhead.name} (${r.trailhead.kind})`,
     distanceKm: r.distanceKm,
+    ascentM: r.ascentM,
     durationMin: r.durationMin,
   }));
   report.sizeBytes = Buffer.byteLength(serializeDetail(detail));
@@ -351,7 +388,7 @@ export function formatReport(reports: PeakReport[]): string {
     lines.push(`  routes: ${r.routes.length}`);
     for (const route of r.routes) {
       lines.push(
-        `    ${route.id}  ${route.name}  ${route.distanceKm} km  ${route.durationMin} min`,
+        `    ${route.id}  ${route.name}  ${route.distanceKm} km  ascent ${route.ascentM} m  ${route.durationMin} min  from ${route.trailhead}`,
       );
     }
     lines.push(`  size: ${r.sizeBytes} bytes`);

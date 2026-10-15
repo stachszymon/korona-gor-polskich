@@ -82,14 +82,15 @@ Pipeline sprawdza każdy szczyt względem węzła `natural=peak` w OSM. Jeśli w
 - zapytanie o relacje `route=hiking` w promieniu 10 km od szczytu (`out geom`) oraz o kandydatów na punkty startu w tym samym promieniu,
 - kolejno serwery lustrzane: `overpass-api.de`, `overpass.private.coffee`, `overpass.kumi.systems`, z nagłówkiem `User-Agent` identyfikującym projekt (bez niego serwer zwraca 406),
 - do 3 ponowień na serwer z wykładniczym odstępem,
-- gdy wszystkie zawiodą, skrypt kończy się błędem i nie nadpisuje istniejących plików w `public/data/`.
+- gdy wszystkie zawiodą, skrypt kończy się błędem i nie nadpisuje istniejących plików w `public/data/`,
+- `--cache=<katalog>` zapisuje odpowiedzi na dysku, żeby po zmianie poprawek nie pytać serwerów ponownie; `--source=osm-api` pobiera te same dane z OSM API 0.6 (wywołania `map` dzielone na kafle poniżej limitów API, co najmniej 1 s odstępu), gdy Overpass nie działa.
 
 **Kolor szlaku:** pierwszy człon `osmc:symbol` (np. `red:white:red_bar` daje `red`), a gdy go brak, tag `colour`. Dozwolone wartości to `red`, `blue`, `green`, `yellow`, `black`. Relacje z innym kolorem lub bez koloru są pomijane i odnotowywane w raporcie pipeline'u.
 
 **Graf szlaków:** wierzchołki to węzły OSM na końcach i przecięciach odcinków szlaków, a krawędzie to fragmenty odcinków z długością w metrach i listą kolorów szlaków, które nimi biegną. Szczyt dołącza się do najbliższego wierzchołka grafu, który musi leżeć w promieniu 150 m. W przeciwnym razie szczyt trafia do raportu jako błąd.
 
 **Punkty startu (kandydaci):** wierzchołki grafu leżące najdalej 300 m od:
-- parkingu (`amenity=parking`),
+- parkingu (`amenity=parking`, z pominięciem `access=private|no|customers`),
 - stacji lub przystanku kolejowego (`railway=station|halt`),
 - przystanku autobusowego (`highway=bus_stop`),
 - środka miejscowości (`place=village|town|hamlet`).
@@ -103,18 +104,20 @@ Nazwa startu pochodzi z nazwy tego obiektu albo najbliższej miejscowości.
 4. Wybór zachłanny do 3 tras: kolejna trasa jest dodawana tylko wtedy, gdy jej start leży co najmniej 2 km od startów już wybranych tras, a nie więcej niż 50% jej długości pokrywa się z wybraną trasą.
 5. Zastosowanie `route-overrides.json` (patrz niżej).
 
-**Wysokości:** geometria trasy jest próbkowana co 25 m. Wysokość każdej próbki pochodzi z kafli AWS Terrain Tiles `terrarium` na zoomie 14, z interpolacją dwuliniową. Suma podejść i zejść jest liczona z profilu wygładzonego średnią kroczącą z 5 próbek, z progiem 2 m, żeby szum DEM nie zawyżał wyniku.
+**Wysokości:** geometria trasy jest próbkowana co 25 m. Wysokość każdej próbki pochodzi z kafli AWS Terrain Tiles `terrarium` na zoomie 14, z interpolacją dwuliniową. Gdzie kafel nie ma danych (piksele −32768 m), próbka pochodzi z niższego zoomu, najniżej 10. Suma podejść i zejść jest liczona z profilu wygładzonego średnią kroczącą z 5 próbek, z progiem 2 m, żeby szum DEM nie zawyżał wyniku.
 
 **Szacowany czas (w jedną stronę, na szczyt):** `czas_h = dystans_km / 4 + podejścia_m / 600`. To 4 km/h po płaskim i 10 minut na każde 100 m podejścia. Wynik jest zaokrąglany do 5 minut. Interfejs opisuje go jako szacunek.
 
 **Ręczne poprawki (`route-overrides.json`)**, kluczowane `peakId`. Obsługiwane operacje:
 - `exclude`: lista identyfikatorów startów do pominięcia,
 - `rename`: mapa identyfikatora trasy na nazwę wyświetlaną, np. „Z Zawoi przez Markowe Szczawiny”,
-- `addTrailhead`: dodatkowy punkt startu (`lat`, `lon`, `name`), który pipeline traktuje jak kandydata.
+- `addTrailhead`: dodatkowy punkt startu (`lat`, `lon`, `name`), który pipeline traktuje jak kandydata,
+- `maxRoutes`: mniej niż 3 trasy (1–3), gdy pozostali kandydaci to długie objazdy,
+- `summitPath`: nieznakowana ścieżka `[lon, lat][]` od szczytu do szlaku (skopiowana z OSM) dla szczytu, do którego nie prowadzi znakowany szlak; jej koniec musi leżeć do 30 m od szlaku, a raport oznacza ją ostrzeżeniem.
 
 Identyfikator trasy ma postać `<peakId>--<trailheadId>`, gdzie `trailheadId` to slug nazwy startu. Dzięki temu poprawki przetrwają ponowne uruchomienie pipeline'u.
 
-**Upraszczanie i rozmiar:** linie szlaków i tras są upraszczane algorytmem Douglasa-Peuckera z tolerancją około 5 m, a współrzędne zaokrąglane do 5 miejsc po przecinku. Docelowy rozmiar pliku jednego szczytu to najwyżej 500 KB (przekroczenie jest ostrzeżeniem w raporcie).
+**Upraszczanie i rozmiar:** linie szlaków i tras są upraszczane algorytmem Douglasa-Peuckera z tolerancją około 5 m, a współrzędne zaokrąglane do 5 miejsc po przecinku. Rysowane szlaki są przycinane do promienia 10 km wokół szczytu (trasy liczy się na pełnym grafie). Docelowy rozmiar pliku jednego szczytu to najwyżej 500 KB (przekroczenie jest ostrzeżeniem w raporcie).
 
 **Raport:** pipeline wypisuje dla każdego szczytu liczbę relacji, liczbę pominiętych relacji (z powodem) i wybrane trasy z dystansem i czasem. Trasy przegląda człowiek przed commitem.
 

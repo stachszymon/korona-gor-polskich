@@ -131,13 +131,21 @@ describe('route overrides', () => {
     await expect(loadOverrides(broken)).rejects.toThrow(broken);
   });
 
-  it('loads a valid file and the committed empty overrides', async () => {
+  it('accepts maxRoutes between 1 and 3', () => {
+    expect(RouteOverridesSchema.parse({ rysy: { maxRoutes: 2 } })).toEqual({ rysy: { maxRoutes: 2 } });
+    for (const bad of [0, 4, 1.5]) {
+      expect(RouteOverridesSchema.safeParse({ rysy: { maxRoutes: bad } }).success).toBe(false);
+    }
+  });
+
+  it('loads a valid file and the committed overrides', async () => {
     const path = await tempFile(
       JSON.stringify({ 'babia-gora': { exclude: ['a'], rename: { 'babia-gora--b': 'B' } } }),
     );
     expect(await loadOverrides(path)).toEqual({
       'babia-gora': { exclude: ['a'], rename: { 'babia-gora--b': 'B' } },
     });
-    expect(await loadOverrides(join(import.meta.dirname, '..', 'route-overrides.json'))).toEqual({});
+    const committed = await loadOverrides(join(import.meta.dirname, '..', 'route-overrides.json'));
+    expect(typeof committed).toBe('object');
   });
 });

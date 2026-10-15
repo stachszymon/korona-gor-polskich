@@ -48,6 +48,11 @@ function worldPixel(p: LonLat, z: number): [number, number] {
   return [x, y];
 }
 
+/** Terrarium tiles mark missing data as black pixels (-32768 m); real heights are far above this. */
+const NODATA_BELOW_M = -12_000;
+/** Lowest zoom tried when tiles of the requested zoom have no data at a point. */
+const MIN_FALLBACK_ZOOM = 10;
+
 /**
  * Samples elevations from terrarium tiles at a fixed zoom.
  *
@@ -57,17 +62,18 @@ function worldPixel(p: LonLat, z: number): [number, number] {
  * centres in global pixel space at zoom z, so a point between the last pixel centre
  * of one tile and the first pixel centre of its neighbour reads both tiles.
  * Each tile is fetched and decoded once (cached by `z/x/y`); a failed fetch is not cached.
+ *
+ * Some tiles of the public dataset are empty (all pixels -32768). When any of the 4 pixels
+ * has no data, the point is sampled from the next lower zoom, down to zoom 10.
  */
 export function createDemSampler(fetchTile: FetchTile, zoom = 14): DemSampler {
   const cache = new Map<string, Promise<Float64Array>>();
-  const tilesPerSide = 2 ** zoom;
-  const worldSize = TILE_SIZE * tilesPerSide;
 
-  const tile = (x: number, y: number): Promise<Float64Array> => {
-    const tileKey = `${zoom}/${x}/${y}`;
+  const tile = (z: number, x: number, y: number): Promise<Float64Array> => {
+    const tileKey = `${z}/${x}/${y}`;
     let entry = cache.get(tileKey);
     if (!entry) {
-      const pending = fetchTile(zoom, x, y).then((png) => decodeTile(png, tileKey));
+      const pending = fetchTile(z, x, y).then((png) => decodeTile(png, tileKey));
       pending.catch(() => {
         if (cache.get(tileKey) === pending) cache.delete(tileKey);
       });
@@ -77,34 +83,43 @@ export function createDemSampler(fetchTile: FetchTile, zoom = 14): DemSampler {
     return entry;
   };
 
-  /** Height of the pixel with global pixel indices (gx, gy); wraps in x, clamps in y. */
-  const pixel = async (gx: number, gy: number): Promise<number> => {
+  /** Height of the pixel with global pixel indices (gx, gy) at zoom z; wraps in x, clamps in y. */
+  const pixel = async (z: number, gx: number, gy: number): Promise<number> => {
+    const worldSize = TILE_SIZE * 2 ** z;
     const wx = ((gx % worldSize) + worldSize) % worldSize;
     const wy = Math.max(0, Math.min(worldSize - 1, gy));
-    const heights = await tile(Math.floor(wx / TILE_SIZE), Math.floor(wy / TILE_SIZE));
+    const heights = await tile(z, Math.floor(wx / TILE_SIZE), Math.floor(wy / TILE_SIZE));
     return heights[(wy % TILE_SIZE) * TILE_SIZE + (wx % TILE_SIZE)]!;
   };
 
+  const sampleAt = async (p: LonLat, z: number): Promise<number> => {
+    const [wx, wy] = worldPixel(p, z);
+    // Shift into pixel-centre space: centre of pixel i sits at i + 0.5.
+    const u = wx - 0.5;
+    const v = wy - 0.5;
+    const x0 = Math.floor(u);
+    const y0 = Math.floor(v);
+    const fx = u - x0;
+    const fy = v - y0;
+    const [h00, h10, h01, h11] = await Promise.all([
+      pixel(z, x0, y0),
+      pixel(z, x0 + 1, y0),
+      pixel(z, x0, y0 + 1),
+      pixel(z, x0 + 1, y0 + 1),
+    ]);
+    if ([h00, h10, h01, h11].some((h) => h < NODATA_BELOW_M)) {
+      if (z <= Math.min(zoom, MIN_FALLBACK_ZOOM)) {
+        throw new Error(`no DEM data at ${p[1]},${p[0]} (zoom ${zoom} down to ${z})`);
+      }
+      return sampleAt(p, z - 1);
+    }
+    const top = h00 * (1 - fx) + h10 * fx;
+    const bottom = h01 * (1 - fx) + h11 * fx;
+    return top * (1 - fy) + bottom * fy;
+  };
+
   return {
-    async elevationAt(p: LonLat): Promise<number> {
-      const [wx, wy] = worldPixel(p, zoom);
-      // Shift into pixel-centre space: centre of pixel i sits at i + 0.5.
-      const u = wx - 0.5;
-      const v = wy - 0.5;
-      const x0 = Math.floor(u);
-      const y0 = Math.floor(v);
-      const fx = u - x0;
-      const fy = v - y0;
-      const [h00, h10, h01, h11] = await Promise.all([
-        pixel(x0, y0),
-        pixel(x0 + 1, y0),
-        pixel(x0, y0 + 1),
-        pixel(x0 + 1, y0 + 1),
-      ]);
-      const top = h00 * (1 - fx) + h10 * fx;
-      const bottom = h01 * (1 - fx) + h11 * fx;
-      return top * (1 - fy) + bottom * fy;
-    },
+    elevationAt: (p: LonLat): Promise<number> => sampleAt(p, zoom),
   };
 }
 
