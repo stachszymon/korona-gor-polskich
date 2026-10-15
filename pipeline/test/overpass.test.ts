@@ -120,6 +120,154 @@ describe('fetchOverpass', () => {
     expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000]);
   });
 
+  it('treats a 200 JSON response with a runtime error remark as failure', async () => {
+    const partial = {
+      remark: 'runtime error: Query timed out in "query" at line 1 after 91 seconds.',
+      elements: [{ type: 'node', id: 9, lat: 1, lon: 2 }],
+    };
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(partial)).mockResolvedValueOnce(json(OK));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const result = await fetchOverpass('q', {
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep,
+    });
+
+    expect(result).toEqual(OK);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000]);
+  });
+
+  it('records the runtime error remark in the attempts', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(json({ remark: 'runtime error: Out of memory', elements: [] })),
+      );
+
+    const error = await fetchOverpass('q', {
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep: vi.fn().mockResolvedValue(undefined),
+      endpoints: ['https://a.example/api'],
+      retries: 0,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(OverpassError);
+    expect((error as OverpassError).attempts[0]).toContain('runtime error: Out of memory');
+  });
+
+  it('keeps a response whose remark is not a runtime error', async () => {
+    const body = { remark: 'something harmless', elements: [] };
+    const fetchMock = vi.fn().mockResolvedValue(json(body));
+
+    const result = await fetchOverpass('q', {
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep: vi.fn().mockResolvedValue(undefined),
+    });
+
+    expect(result.elements).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats invalid JSON as failure', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{"elements": [', { status: 200 }))
+      .mockResolvedValueOnce(json(OK));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const result = await fetchOverpass('q', {
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep,
+    });
+
+    expect(result).toEqual(OK);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a response without an elements array as failure', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(json({ version: 0.6 })));
+
+    const error = await fetchOverpass('q', {
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep: vi.fn().mockResolvedValue(undefined),
+      endpoints: ['https://a.example/api'],
+      retries: 0,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(OverpassError);
+    expect((error as OverpassError).attempts[0]).toContain('elements');
+  });
+
+  it('aborts a request after timeoutMs and counts it as a failed attempt', async () => {
+    vi.useFakeTimers();
+    try {
+      const signals: AbortSignal[] = [];
+      const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal as AbortSignal;
+        signals.push(signal);
+        return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        });
+      });
+
+      const pending = fetchOverpass('q', {
+        fetch: fetchMock as unknown as typeof fetch,
+        sleep: vi.fn().mockResolvedValue(undefined),
+        endpoints: ['https://a.example/api'],
+        retries: 0,
+        timeoutMs: 5000,
+      }).catch((e: unknown) => e);
+
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(signals[0]?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[0]?.aborted).toBe(true);
+
+      const error = await pending;
+      expect(error).toBeInstanceOf(OverpassError);
+      expect((error as OverpassError).attempts).toHaveLength(1);
+      expect((error as OverpassError).attempts[0]).toContain('timed out after 5000 ms');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('defaults the request timeout to 120000 ms', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal as AbortSignal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        });
+      });
+
+      let settled = false;
+      const pending = fetchOverpass('q', {
+        fetch: fetchMock as unknown as typeof fetch,
+        sleep: vi.fn().mockResolvedValue(undefined),
+        endpoints: ['https://a.example/api'],
+        retries: 0,
+      })
+        .catch((e: unknown) => e)
+        .finally(() => {
+          settled = true;
+        });
+
+      await vi.advanceTimersByTimeAsync(119_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(await pending).toBeInstanceOf(OverpassError);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('throws OverpassError listing every attempt when all mirrors fail', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(json({}, 504)));
     const sleep = vi.fn().mockResolvedValue(undefined);
@@ -213,6 +361,14 @@ describe('query builders', () => {
     expect(q).toContain('node[natural=peak][name="Rysy"](49.0,14.0,51.1,24.2);');
     expect(q).toContain('node[natural=peak][name="Śnieżka"](49.0,14.0,51.1,24.2);');
     expect(q.endsWith('out;')).toBe(true);
+  });
+
+  it('peakNodesQuery throws on an empty list', () => {
+    expect(() => peakNodesQuery([])).toThrow(Error);
+  });
+
+  it('peaksByNameQuery throws on an empty list', () => {
+    expect(() => peaksByNameQuery([])).toThrow(Error);
   });
 
   it('peaksByNameQuery escapes quotes and backslashes in names', () => {

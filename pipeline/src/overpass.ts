@@ -51,6 +51,8 @@ export interface OverpassDeps {
   endpoints?: string[];
   /** Retries per endpoint after the first try (default 3). */
   retries?: number;
+  /** Per-request timeout in ms (default 120000). */
+  timeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -64,8 +66,13 @@ interface RawElement {
   tags?: Record<string, string>;
 }
 
+interface OverpassPayload {
+  elements?: unknown;
+  remark?: unknown;
+}
+
 /** Ways requested with `out center;` (parkings) become plain nodes at their center. */
-function normalize(data: { elements?: unknown }): OverpassResponse {
+function normalize(data: OverpassPayload): OverpassResponse {
   if (!Array.isArray(data.elements)) {
     throw new Error('response has no "elements" array');
   }
@@ -85,10 +92,35 @@ function normalize(data: { elements?: unknown }): OverpassResponse {
   return { elements } as OverpassResponse;
 }
 
+const DEFAULT_TIMEOUT_MS = 120_000;
+
 async function tryOnce(
   doFetch: typeof fetch,
   endpoint: string,
   query: string,
+  timeoutMs: number,
+): Promise<OverpassResponse> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await request(doFetch, endpoint, query, controller.signal);
+  } catch (error) {
+    if (timedOut) throw new Error(`timed out after ${timeoutMs} ms`, { cause: error });
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function request(
+  doFetch: typeof fetch,
+  endpoint: string,
+  query: string,
+  signal: AbortSignal,
 ): Promise<OverpassResponse> {
   const response = await doFetch(endpoint, {
     method: 'POST',
@@ -97,6 +129,7 @@ async function tryOnce(
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: `data=${encodeURIComponent(query)}`,
+    signal,
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -106,13 +139,19 @@ async function tryOnce(
   if (text.trimStart().startsWith('<')) {
     throw new Error('HTML body instead of JSON');
   }
+  let parsed: OverpassPayload;
   try {
-    return normalize(JSON.parse(text) as { elements?: unknown });
+    parsed = JSON.parse(text) as OverpassPayload;
   } catch (error) {
     throw new Error(`invalid JSON: ${error instanceof Error ? error.message : String(error)}`, {
       cause: error,
     });
   }
+  // A runtime error (e.g. timeout) can come with status 200 and partial elements.
+  if (typeof parsed.remark === 'string' && parsed.remark.startsWith('runtime error')) {
+    throw new Error(parsed.remark);
+  }
+  return normalize(parsed);
 }
 
 /**
@@ -127,13 +166,14 @@ export async function fetchOverpass(
   const endpoints = deps.endpoints ?? OVERPASS_ENDPOINTS;
   const retries = deps.retries ?? 3;
   const sleep = deps.sleep ?? defaultSleep;
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const attempts: string[] = [];
 
   for (const endpoint of endpoints) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       if (attempt > 0) await sleep(1000 * 2 ** (attempt - 1));
       try {
-        return await tryOnce(doFetch, endpoint, query);
+        return await tryOnce(doFetch, endpoint, query, timeoutMs);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         attempts.push(`${endpoint} attempt ${attempt + 1}: ${reason}`);
@@ -164,6 +204,7 @@ export function trailheadCandidatesQuery(lat: number, lon: number, radiusM: numb
 }
 
 export function peakNodesQuery(nodeIds: number[]): string {
+  if (nodeIds.length === 0) throw new Error('peakNodesQuery needs at least one node id');
   return `[out:json][timeout:60];node(id:${nodeIds.join(',')});out;`;
 }
 
@@ -171,6 +212,7 @@ const escapeOverpassString = (value: string): string =>
   value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
 export function peaksByNameQuery(names: string[]): string {
+  if (names.length === 0) throw new Error('peaksByNameQuery needs at least one name');
   const parts = names
     .map((name) => `node[natural=peak][name="${escapeOverpassString(name)}"](${POLAND_BBOX});`)
     .join('');
