@@ -19,6 +19,17 @@ interface Initial {
   /** Storage to write to; `null` keeps progress in session memory only. */
   storage: Storage | null;
   state: State;
+  /** Raw value that was just backed up as corrupt, if any. */
+  corruptRaw: string | null;
+}
+
+function peekRaw(storage: Storage | null): string | null {
+  if (!storage) return null;
+  try {
+    return storage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 const now = () => new Date();
@@ -26,9 +37,10 @@ const now = () => new Date();
 function init(): Initial {
   const storage = getStorage();
   const loaded = loadProgress(storage, now);
+  const corruptRaw = loaded.recoveredCorrupt ? peekRaw(storage) : null;
   // When loading says "not persistent" (e.g. the corrupt backup failed), never write,
   // so the original data is not overwritten.
-  return { storage: loaded.persistent ? storage : null, state: loaded };
+  return { storage: loaded.persistent ? storage : null, state: loaded, corruptRaw };
 }
 
 export function useProgress(): {
@@ -44,6 +56,11 @@ export function useProgress(): {
   const latest = useRef<State>(initial.state);
   // Becomes null once writing must stop (see `syncFromStorage`).
   const storageRef = useRef<Storage | null>(initial.storage);
+  // True after a failed save: in-memory state is then newer than storage and must not be
+  // replaced by the stored copy until a save succeeds.
+  const unsynced = useRef(false);
+  // Raw corrupt value already copied to a `.corrupt-<ts>` key; not backed up again.
+  const backedUpRaw = useRef<string | null>(initial.corruptRaw);
 
   const publish = useCallback((next: State) => {
     latest.current = next;
@@ -57,8 +74,11 @@ export function useProgress(): {
    */
   const syncFromStorage = useCallback(() => {
     const storage = storageRef.current;
-    if (!storage) return;
+    if (!storage || unsynced.current) return;
+    const raw = peekRaw(storage);
+    if (raw !== null && raw === backedUpRaw.current) return;
     const loaded = loadProgress(storage, now);
+    if (loaded.recoveredCorrupt) backedUpRaw.current = raw;
     if (!loaded.persistent) storageRef.current = null;
     // A failed read (not corrupt data) says nothing about the stored progress: keep ours.
     const keepCurrent = !loaded.persistent && !loaded.recoveredCorrupt;
@@ -72,6 +92,7 @@ export function useProgress(): {
   const commit = useCallback(
     (progress: Progress) => {
       const saved = saveProgress(storageRef.current, progress);
+      unsynced.current = !saved;
       publish({ progress, persistent: saved, recoveredCorrupt: latest.current.recoveredCorrupt });
     },
     [publish],

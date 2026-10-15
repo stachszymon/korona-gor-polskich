@@ -197,6 +197,62 @@ describe('useProgress', () => {
     expect(result.current.persistent).toBe(false);
   });
 
+  it('keeps unsaved entries and persistent=false across later setStatus calls until a save succeeds', () => {
+    const { result } = renderHook(() => useProgress());
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    act(() => {
+      result.current.setStatus('a', { status: 'done' });
+    });
+    act(() => {
+      result.current.setStatus('b', { status: 'planned' });
+    });
+    expect(Object.keys(result.current.progress.peaks).sort()).toEqual(['a', 'b']);
+    expect(result.current.persistent).toBe(false);
+
+    // Storage works again: the next save writes everything and clears the warning.
+    spy.mockRestore();
+    act(() => {
+      result.current.setStatus('c', { status: 'done' });
+    });
+    expect(result.current.persistent).toBe(true);
+    expect(Object.keys(reload().peaks).sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('does not let a storage event replace unsaved entries', () => {
+    const { result } = renderHook(() => useProgress());
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    act(() => {
+      result.current.setStatus('a', { status: 'done' });
+    });
+    fireStorage(STORAGE_KEY, null);
+    expect(result.current.progress.peaks['a']).toEqual({ status: 'done' });
+    expect(result.current.persistent).toBe(false);
+  });
+
+  it('backs up the same corrupt value only once, however many times it is re-read', () => {
+    localStorage.setItem(STORAGE_KEY, 'garbage{');
+    const realSetItem = Storage.prototype.setItem;
+    const backups: string[] = [];
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key.includes('.corrupt-')) backups.push(key);
+      realSetItem.call(this, key, value);
+    });
+    const { result } = renderHook(() => useProgress());
+    fireStorage(STORAGE_KEY, 'garbage{');
+    fireStorage(STORAGE_KEY, 'garbage{');
+    expect(backups).toHaveLength(1);
+    expect(result.current.recoveredCorrupt).toBe(true);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('garbage{');
+  });
+
   it('flips persistent to false when a save fails later', () => {
     const { result } = renderHook(() => useProgress());
     expect(result.current.persistent).toBe(true);
