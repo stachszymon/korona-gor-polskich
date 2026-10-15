@@ -1,0 +1,186 @@
+{
+  "peakId": "babia-gora",
+  "trails": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "colors": [
+            "red"
+          ],
+          "name": "Główny Szlak Beskidzki"
+        },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              19.5,
+              49.57
+            ],
+            [
+              19.51,
+              49.575
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "routes": [
+    {
+      "id": "babia-gora--zawoja-markowa",
+      "name": "Z Zawoi Markowej",
+      "trailhead": {
+        "name": "Zawoja Markowa",
+        "lat": 49.6,
+        "lon": 19.5,
+        "kind": "parking"
+      },
+      "distanceKm": 7.4,
+      "ascentM": 980,
+      "descentM": 10,
+      "durationMin": 210,
+      "colors": [
+        "red",
+        "yellow"
+      ],
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            19.5,
+            49.6,
+            870
+          ],
+          [
+            19.51,
+            49.605000000000004,
+            1360
+          ],
+          [
+            19.52,
+            49.61,
+            1850
+          ]
+        ]
+      },
+      "profile": [
+        [
+          0,
+          870
+        ],
+        [
+          25,
+          872
+        ],
+        [
+          50,
+          874
+        ]
+      ]
+    },
+    {
+      "id": "babia-gora--zawoja-policzne",
+      "name": "Z Zawoi Policznego",
+      "trailhead": {
+        "name": "Zawoja Policzne",
+        "lat": 49.61,
+        "lon": 19.55,
+        "kind": "parking"
+      },
+      "distanceKm": 8.1,
+      "ascentM": 900,
+      "descentM": 10,
+      "durationMin": 200,
+      "colors": [
+        "green"
+      ],
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            19.55,
+            49.61,
+            820
+          ],
+          [
+            19.560000000000002,
+            49.615,
+            1270
+          ],
+          [
+            19.57,
+            49.62,
+            1720
+          ]
+        ]
+      },
+      "profile": [
+        [
+          0,
+          820
+        ],
+        [
+          25,
+          822
+        ],
+        [
+          50,
+          824
+        ]
+      ]
+    },
+    {
+      "id": "babia-gora--korbielow",
+      "name": "Z Korbielowa",
+      "trailhead": {
+        "name": "Korbielów",
+        "lat": 49.55,
+        "lon": 19.45,
+        "kind": "parking"
+      },
+      "distanceKm": 9.2,
+      "ascentM": 850,
+      "descentM": 10,
+      "durationMin": 215,
+      "colors": [
+        "blue"
+      ],
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            19.45,
+            49.55,
+            780
+          ],
+          [
+            19.46,
+            49.555,
+            1205
+          ],
+          [
+            19.47,
+            49.559999999999995,
+            1630
+          ]
+        ]
+      },
+      "profile": [
+        [
+          0,
+          780
+        ],
+        [
+          25,
+          782
+        ],
+        [
+          50,
+          784
+        ]
+      ]
+    }
+  ]
+}
