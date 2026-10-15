@@ -37,11 +37,11 @@ function json(body: unknown, ok = true): Response {
   return { ok, status: ok ? 200 : 500, json: () => Promise.resolve(body) } as Response;
 }
 
-function makeFetch(): typeof fetch {
+function makeFetch(detail: unknown = babiaGora): typeof fetch {
   return vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith('data/peaks.json')) return Promise.resolve(json(peaksIndex));
-    if (url.endsWith('data/peaks/babia-gora.json')) return Promise.resolve(json(babiaGora));
+    if (url.endsWith('data/peaks/babia-gora.json')) return Promise.resolve(json(detail));
     return Promise.resolve(json({}, false));
   }) as unknown as typeof fetch;
 }
@@ -176,6 +176,38 @@ describe('App', () => {
       await user.click(screen.getByRole('button', { name: 'hover profile' }));
     });
     const [lon, lat] = route.geometry.coordinates[1]!;
-    expect(JSON.parse(screen.getByTestId('map').getAttribute('data-cursor') ?? 'null')).toEqual([lon, lat]);
+    const cursor = JSON.parse(screen.getByTestId('map').getAttribute('data-cursor') ?? 'null') as [number, number];
+    expect(cursor[0]).toBeCloseTo(lon, 4);
+    expect(cursor[1]).toBeCloseTo(lat, 4);
+  });
+
+  it('places the cursor by distance when profile and geometry have different point counts', async () => {
+    // Simplified geometry (3 vertices, evenly spaced) against a profile with a point every 100 m.
+    const detail = structuredClone(babiaGora);
+    const first = detail.routes[0]!;
+    first.geometry.coordinates = [
+      [19.0, 49.0, 800],
+      [19.1, 49.0, 900],
+      [19.2, 49.0, 1000],
+    ];
+    first.profile = [
+      [0, 800],
+      [100, 850],
+      [200, 900],
+      [300, 950],
+      [400, 1000],
+    ];
+    const { user } = renderApp({ supportsWebGL: () => true, fetchFn: makeFetch(detail) });
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(screen.getByRole('button', { name: 'marker Babia Góra' }));
+    await user.click(await screen.findByRole('button', { name: /Z Zawoi Markowej/ }));
+
+    // The mocked profile reports index 1: 100 m of 400 m, a quarter of the way along the geometry.
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'hover profile' }));
+    });
+    const [lon, lat] = JSON.parse(screen.getByTestId('map').getAttribute('data-cursor') ?? 'null') as [number, number];
+    expect(lon).toBeCloseTo(19.05, 4);
+    expect(lat).toBeCloseTo(49.0, 4);
   });
 });

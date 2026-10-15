@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePeakDetail, usePeaksIndex } from './data/usePeakDetail';
 import { MapView } from './map/MapView';
+import { pointAtDistance } from './map/routeCursor';
 import { supportsWebGL as detectWebGL } from './map/webgl';
 import type { PeakProgress } from './progress/progress';
 import { useProgress } from './progress/useProgress';
@@ -46,12 +47,11 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
 
   const cursor = useMemo<[number, number] | null>(() => {
     if (!route || cursorIndex === null) return null;
-    // The profile and the geometry may be sampled differently: map by relative position.
-    const last = route.profile.length - 1;
-    const coords = route.geometry.coordinates;
-    const at = last > 0 ? Math.round((cursorIndex * (coords.length - 1)) / last) : 0;
-    const point = coords[at];
-    return point ? [point[0], point[1]] : null;
+    // The geometry is simplified and the profile is sampled evenly, so match them by distance.
+    const sample = route.profile[cursorIndex];
+    const total = route.profile.at(-1)?.[0];
+    if (!sample || total === undefined) return null;
+    return pointAtDistance(route.geometry.coordinates, sample[0], total);
   }, [route, cursorIndex]);
 
   // Debounced saving of date/note edits; a status change saves immediately.

@@ -506,13 +506,24 @@ textarea {
 /* ---------- Elevation profile ---------- */
 
 .elevation-profile {
-  display: block;
+  position: relative;
   width: 100%;
   height: 120px;
 }
 
+.elevation-profile__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .elevation-profile__label {
-  fill: var(--color-muted);
+  position: absolute;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  text-align: right;
+  pointer-events: none;
 }
 
 /* ---------- Footer ---------- */

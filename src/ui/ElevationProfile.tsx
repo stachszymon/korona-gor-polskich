@@ -54,36 +54,51 @@ export function ElevationProfile({ profile, onHover }: ElevationProfileProps) {
     onHover(nearestIndex(profile, minD + fraction * spanD));
   }
 
+  const labelBox = { left: 0, width: `calc(${(PAD.left / WIDTH) * 100}% - 4px)` };
+
+  // The SVG is stretched to the container (`preserveAspectRatio="none"`), which would distort
+  // text, so the axis labels are plain HTML laid over it.
   return (
-    <svg
-      className="elevation-profile"
-      role="img"
-      aria-label="Profil wysokości trasy"
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      preserveAspectRatio="none"
-      onPointerMove={handleMove}
-      onPointerDown={handleMove}
-      onPointerLeave={() => onHover(null)}
-      onPointerCancel={() => onHover(null)}
-      style={{ touchAction: 'none' }}
-    >
-      <path className="elevation-profile__area" d={area} fill="currentColor" fillOpacity={0.25} />
-      <polyline className="elevation-profile__line" points={line.join(' ')} fill="none" stroke="currentColor" />
-      <line
-        className="elevation-profile__axis"
-        x1={PAD.left}
-        x2={PAD.left}
-        y1={PAD.top}
-        y2={PAD.top + PLOT_H}
-        stroke="currentColor"
-        strokeOpacity={0.5}
-      />
-      <text className="elevation-profile__label" x={PAD.left - 4} y={PAD.top + 8} textAnchor="end" fontSize={10}>
-        {`${Math.round(maxE)} m`}
-      </text>
-      <text className="elevation-profile__label" x={PAD.left - 4} y={PAD.top + PLOT_H} textAnchor="end" fontSize={10}>
-        {`${Math.round(minE)} m`}
-      </text>
-    </svg>
+    <div className="elevation-profile">
+      <svg
+        className="elevation-profile__svg"
+        role="img"
+        aria-label="Profil wysokości trasy"
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        preserveAspectRatio="none"
+        onPointerMove={handleMove}
+        onPointerDown={handleMove}
+        onPointerLeave={() => onHover(null)}
+        onPointerCancel={() => onHover(null)}
+        style={{ touchAction: 'none' }}
+      >
+        <path className="elevation-profile__area" d={area} fill="currentColor" fillOpacity={0.25} />
+        <polyline
+          className="elevation-profile__line"
+          points={line.join(' ')}
+          fill="none"
+          stroke="currentColor"
+          vectorEffect="non-scaling-stroke"
+        />
+        <line
+          className="elevation-profile__axis"
+          x1={PAD.left}
+          x2={PAD.left}
+          y1={PAD.top}
+          y2={PAD.top + PLOT_H}
+          stroke="currentColor"
+          strokeOpacity={0.5}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span
+        className="elevation-profile__label"
+        style={{ ...labelBox, top: `${(PAD.top / HEIGHT) * 100}%` }}
+      >{`${Math.round(maxE)} m`}</span>
+      <span
+        className="elevation-profile__label"
+        style={{ ...labelBox, bottom: `${(PAD.bottom / HEIGHT) * 100}%` }}
+      >{`${Math.round(minE)} m`}</span>
+    </div>
   );
 }

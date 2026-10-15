@@ -38,6 +38,12 @@ describe('ElevationProfile', () => {
     expect(onHover).toHaveBeenLastCalledWith(null);
   });
 
+  it('renders axis labels outside the stretched SVG so the text is not distorted', () => {
+    const { svg } = renderProfile();
+    expect(svg.querySelector('text')).toBeNull();
+    expect(svg.contains(screen.getByText('800 m'))).toBe(false);
+  });
+
   it('shows the elevation axis range', () => {
     renderProfile();
     expect(screen.getByText('800 m')).toBeInTheDocument();
