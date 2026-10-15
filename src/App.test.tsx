@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { PeakDetailSchema } from './data/schema';
@@ -102,6 +102,27 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Notatka'), '!');
     await user.click(screen.getByRole('button', { name: 'Zamknij' }));
     expect(storedProgress()?.peaks['babia-gora']?.note).toBe('Mgła!');
+  });
+
+  it('tells the user when a date cannot be saved instead of dropping the edit silently', async () => {
+    const { user } = renderApp();
+    const list = await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(within(list).getByRole('button', { name: /Babia Góra/ }));
+    await user.click(await screen.findByRole('button', { name: 'Zdobyty' }));
+
+    // A year the date input accepts but the progress format rejects (Date.UTC maps 0–99 to 19xx).
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '0099-05-01' } });
+    expect(
+      await screen.findByText('Nie zapisano zmiany: nieprawidłowa data. Podaj datę z lat 1900–2100.', {}, { timeout: 2000 }),
+    ).toBeInTheDocument();
+    expect(storedProgress()?.peaks['babia-gora']).toEqual({ status: 'done' });
+
+    // A valid date saves again and clears the message.
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-05-01' } });
+    await waitFor(() => expect(storedProgress()?.peaks['babia-gora']).toEqual({ status: 'done', date: '2026-05-01' }), {
+      timeout: 2000,
+    });
+    expect(screen.queryByText(/Nie zapisano zmiany/)).not.toBeInTheDocument();
   });
 
   it('shows storage banner when storage is null', async () => {

@@ -7,6 +7,9 @@ export interface StatusControlsProps {
 }
 
 const MAX_NOTE_LENGTH = 500;
+/** Years the stored progress format accepts reliably (see `isoCalendarDate`). */
+const MIN_DATE = '1900-01-01';
+const MAX_DATE = '2100-12-31';
 
 /** Drops empty optional fields so the entry always passes progress validation. */
 function toEntry(status: PeakProgress['status'], date: string, note: string): PeakProgress {
@@ -70,7 +73,14 @@ export function StatusControls({ entry, onChange }: StatusControlsProps) {
       {status === 'done' && (
         <div className="status-controls__fields">
           <label htmlFor={`${ids}-date`}>Data</label>
-          <input id={`${ids}-date`} type="date" value={date} onChange={(e) => changeDate(e.target.value)} />
+          <input
+            id={`${ids}-date`}
+            type="date"
+            min={MIN_DATE}
+            max={MAX_DATE}
+            value={date}
+            onChange={(e) => changeDate(e.target.value)}
+          />
           <label htmlFor={`${ids}-note`}>Notatka</label>
           <textarea
             id={`${ids}-note`}
@@ -83,7 +93,14 @@ export function StatusControls({ entry, onChange }: StatusControlsProps) {
       {status === 'planned' && (
         <div className="status-controls__fields">
           <label htmlFor={`${ids}-planned`}>Planowana data</label>
-          <input id={`${ids}-planned`} type="date" value={date} onChange={(e) => changeDate(e.target.value)} />
+          <input
+            id={`${ids}-planned`}
+            type="date"
+            min={MIN_DATE}
+            max={MAX_DATE}
+            value={date}
+            onChange={(e) => changeDate(e.target.value)}
+          />
         </div>
       )}
     </div>

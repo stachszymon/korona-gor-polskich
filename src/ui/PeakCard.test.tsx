@@ -127,6 +127,15 @@ describe('PeakCard', () => {
       });
     });
 
+    it('date fields are limited to the years 1900–2100', async () => {
+      renderCard({ entry: { status: 'done' } });
+      expect(screen.getByLabelText('Data')).toHaveAttribute('min', '1900-01-01');
+      expect(screen.getByLabelText('Data')).toHaveAttribute('max', '2100-12-31');
+      await userEvent.click(screen.getByRole('button', { name: 'Planuję' }));
+      expect(screen.getByLabelText('Planowana data')).toHaveAttribute('min', '1900-01-01');
+      expect(screen.getByLabelText('Planowana data')).toHaveAttribute('max', '2100-12-31');
+    });
+
     it('note field is limited to 500 characters', () => {
       renderCard({ entry: { status: 'done' } });
       expect(screen.getByLabelText('Notatka')).toHaveAttribute('maxlength', '500');
