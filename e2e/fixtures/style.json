@@ -1,0 +1,22 @@
+{
+  "version": 8,
+  "name": "e2e-minimal",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  "sources": {
+    "stub": {
+      "type": "vector",
+      "tiles": ["https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf"],
+      "maxzoom": 14
+    }
+  },
+  "layers": [
+    { "id": "background", "type": "background", "paint": { "background-color": "#e8efe4" } },
+    {
+      "id": "place-label",
+      "type": "symbol",
+      "source": "stub",
+      "source-layer": "place",
+      "layout": { "text-field": "{name}", "text-font": ["Noto Sans Regular"] }
+    }
+  ]
+}
