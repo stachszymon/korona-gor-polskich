@@ -93,4 +93,15 @@ describe('generated data in public/data', () => {
     }
     expect(checked).toBeGreaterThanOrEqual(KGP_PEAK_COUNT);
   });
+
+  it('every route is named after where it starts ("Z …", "Ze …" or "Spod …"), without brand names', () => {
+    const names = loadDetails().flatMap(({ detail }) => detail.routes.map((r) => [r.id, r.name] as const));
+    expect(names.length).toBeGreaterThanOrEqual(KGP_PEAK_COUNT);
+    for (const [id, name] of names) {
+      expect(name, id).toMatch(/^(Z|Ze|Spod) \S/);
+      expect(name, id).not.toContain('→');
+      expect(name, id).not.toMatch(/Mountain Resort/i);
+    }
+  });
 });
+
