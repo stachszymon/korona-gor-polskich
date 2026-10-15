@@ -52,6 +52,18 @@ const h = vi.hoisted(() => {
       this.paint[`${layer}.${prop}`] = value;
     }
     zoom = 5;
+    pitch = 50;
+    /** Camera calls in order, for the route framing sequence. */
+    calls: string[] = [];
+    getCenter() {
+      return { lng: 19, lat: 50 };
+    }
+    getPitch() {
+      return this.pitch;
+    }
+    getBearing() {
+      return 0;
+    }
     getZoom() {
       return this.zoom;
     }
@@ -65,7 +77,22 @@ const h = vi.hoisted(() => {
     project() {
       return { x: this.zoom > 4.5 ? 900 : 100, y: 100 };
     }
-    fitBounds = vi.fn();
+    resize = vi.fn(() => {
+      this.calls.push('resize');
+    });
+    fitBounds = vi.fn((_bounds: unknown, options?: { pitch?: number }) => {
+      this.calls.push('fitBounds');
+      if (options?.pitch !== undefined) this.pitch = options.pitch;
+    });
+    jumpTo = vi.fn((camera: { zoom: number; pitch: number }) => {
+      this.calls.push('jumpTo');
+      this.zoom = camera.zoom;
+      this.pitch = camera.pitch;
+    });
+    easeTo = vi.fn(() => {
+      this.calls.push('easeTo');
+    });
+    panBy = vi.fn();
     flyTo = vi.fn();
     remove() {
       this.removed = true;
@@ -238,23 +265,40 @@ describe('MapView', () => {
     expect(trails.features).toHaveLength(2);
   });
 
-  it('fits bounds and dims trails when a route is selected', async () => {
+  it('frames the selected route: resizes, fits off-screen at pitch 48, jumps back and eases', async () => {
     const { map, rerender } = await renderLoaded(baseProps({ detail }));
+    map.zoom = 6;
+    map.calls.length = 0;
     rerender(<MapView {...baseProps({ detail, selectedRouteId: route.id })} />);
 
+    expect(map.calls).toEqual(['resize', 'fitBounds', 'jumpTo', 'easeTo']);
     expect(map.fitBounds).toHaveBeenLastCalledWith(
       [
         [19.5, 49.5732],
         [19.5294, 49.6],
       ],
-      { padding: 60, pitch: 60 },
+      { padding: 60, pitch: 48, bearing: 0, duration: 0 },
     );
+    // Jumped back to the camera from before the off-screen computation.
+    expect(map.jumpTo).toHaveBeenLastCalledWith(expect.objectContaining({ zoom: 6, pitch: 50 }));
+    // The fake projects everything off-screen above zoom 4.5, so the eased target is zoomed out.
+    const target = map.easeTo.mock.calls.at(-1) as unknown as [{ zoom: number; pitch: number; duration: number }];
+    expect(target[0].pitch).toBe(48);
+    expect(target[0].zoom).toBeLessThanOrEqual(4.5);
+    expect(target[0].duration).toBeGreaterThan(0);
+  });
+
+  it('dims trails while a route is selected', async () => {
+    const { map, rerender } = await renderLoaded(baseProps({ detail }));
+    rerender(<MapView {...baseProps({ detail, selectedRouteId: route.id })} />);
     expect(map.paint['trails.line-opacity']).toBe(0.35);
     expect((map.data['route'] as { features: unknown[] }).features).toHaveLength(1);
 
+    map.calls.length = 0;
     rerender(<MapView {...baseProps({ detail, selectedRouteId: null })} />);
     expect(map.paint['trails.line-opacity']).toBe(1);
     expect((map.data['route'] as { features: unknown[] }).features).toHaveLength(0);
+    expect(map.calls).toEqual([]);
   });
 
   it('moves the profile cursor point', async () => {

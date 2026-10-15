@@ -4,6 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { MapLayerMouseEvent, StyleSpecification } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 import type { PeakDetail, PeakSummary } from '../data/schema';
+import { frameRoute } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
 import {
@@ -44,6 +45,10 @@ type Position = [number, number];
 /** Rough view of southern Poland, so the first tiles are not the whole world. */
 const START_CENTER: Position = [19, 50];
 const START_ZOOM = 6.5;
+/** Camera for a selected route: tilted enough for relief, flat enough to keep the whole route in view. */
+const ROUTE_PITCH = 48;
+const ROUTE_PADDING = 60;
+const ROUTE_EASE_MS = 1200;
 const ZOOM_OUT_STEP = 0.1;
 const MAX_ZOOM_OUT_STEPS = 30;
 
@@ -207,8 +212,7 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
     if (!ready || !map) return;
     (map.getSource('route') as maplibregl.GeoJSONSource | undefined)?.setData(routeToGeoJSON(route));
     map.setPaintProperty('trails', 'line-opacity', trailsOpacity(route !== null));
-    const bounds = route ? boundsOf(route.geometry.coordinates) : null;
-    if (bounds) map.fitBounds(bounds, { padding: 60, pitch: 60 });
+    if (route) frameRoute(map, route.geometry.coordinates, { padding: ROUTE_PADDING, pitch: ROUTE_PITCH, duration: ROUTE_EASE_MS });
   }, [ready, route]);
 
   const cursorLon = cursor?.[0];
