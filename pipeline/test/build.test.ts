@@ -218,6 +218,57 @@ describe('buildPeak', () => {
     expect(report.warnings.filter((w) => w.includes('unknown trailhead'))).toEqual([]);
   });
 
+  it('summitPath connects a summit that no trail reaches by an unmarked path', async () => {
+    // Babia Góra moved ~400 m east of its real summit, away from every trail.
+    const offTrail: PeakSource = { ...BABIA, lon: BABIA.lon + 0.0055 };
+    const without = await buildPeak(offTrail, makeDeps([offTrail]).deps);
+    expect(without.report.errors).toEqual([expect.stringContaining('150 m')]);
+
+    // Path: from the moved summit back to the real summit, which is on the trails.
+    const summitPath: [number, number][] = [
+      [offTrail.lon, offTrail.lat],
+      [BABIA.lon + 0.0027, BABIA.lat + 0.0002],
+      [BABIA.lon, BABIA.lat],
+    ];
+    const overrides: RouteOverrides = { 'babia-gora': { summitPath } };
+    const { detail, report } = await buildPeak(offTrail, makeDeps([offTrail], { overrides }).deps);
+
+    expect(report.errors).toEqual([]);
+    expect(detail.routes.length).toBeGreaterThan(0);
+    for (const route of detail.routes) {
+      const end = route.geometry.coordinates.at(-1)!;
+      expect(haversineM([end[0], end[1]], [offTrail.lon, offTrail.lat])).toBeLessThan(5);
+      expect(route.colors.length).toBeGreaterThan(0);
+    }
+    // The unmarked path is part of the routes but not drawn as a PTTK trail.
+    for (const f of detail.trails.features) {
+      for (const [lon, lat] of f.geometry.coordinates) {
+        expect(haversineM([lon, lat], [offTrail.lon, offTrail.lat])).toBeGreaterThan(150);
+      }
+    }
+    expect(report.warnings).toEqual([expect.stringMatching(/unmarked path of \d+ m/)]);
+  });
+
+  it('summitPath that does not reach a trail is reported as an error', async () => {
+    const offTrail: PeakSource = { ...BABIA, lon: BABIA.lon + 0.0055 };
+    const overrides: RouteOverrides = {
+      'babia-gora': { summitPath: [[offTrail.lon, offTrail.lat], [offTrail.lon + 0.001, offTrail.lat]] },
+    };
+    const { report } = await buildPeak(offTrail, makeDeps([offTrail], { overrides }).deps);
+    expect(report.errors).toContain('override summitPath: its last point is not within 30 m of a trail');
+  });
+
+  it('maxRoutes limits the number of selected routes of a peak', async () => {
+    const baseline = await buildPeak(BABIA, makeDeps([BABIA]).deps);
+    expect(baseline.detail.routes.length).toBeGreaterThan(1);
+
+    const overrides: RouteOverrides = { 'babia-gora': { maxRoutes: 1 } };
+    const { detail, report } = await buildPeak(BABIA, makeDeps([BABIA], { overrides }).deps);
+
+    expect(detail.routes.map((r) => r.id)).toEqual([baseline.detail.routes[0]!.id]);
+    expect(report.warnings).toEqual([]);
+  });
+
   it('drops excluded trailheads before routing and applies renames', async () => {
     const baseline = await buildPeak(BABIA, makeDeps([BABIA]).deps);
     const [first, second] = baseline.detail.routes;

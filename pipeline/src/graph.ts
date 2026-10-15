@@ -132,3 +132,37 @@ export function nearestVertex(graph: TrailGraph, p: LonLat, maxDistM: number): s
   }
   return bestDist <= maxDistM ? best : null;
 }
+
+/** Way id of edges added by `addUnmarkedPath` (real OSM way ids are positive). */
+export const UNMARKED_WAY_ID = -1;
+
+/**
+ * Adds an unmarked path (no PTTK colour) to the graph, e.g. the short path from a marked
+ * trail to a summit that no trail reaches. The last point is snapped to the nearest graph
+ * vertex within `snapM`; when there is none, nothing is added and `false` is returned.
+ */
+export function addUnmarkedPath(graph: TrailGraph, coords: LonLat[], snapM: number): boolean {
+  const last = coords.at(-1);
+  if (coords.length < 2 || last === undefined) return false;
+  const joint = nearestVertex(graph, last, snapM);
+  if (joint === null) return false;
+
+  const points = [...coords.slice(0, -1), graph.vertices.get(joint)!];
+  let prevKey: string | undefined;
+  let prev: LonLat | undefined;
+  for (const point of points) {
+    const key = vertexKey(point);
+    if (!graph.vertices.has(key)) {
+      graph.vertices.set(key, point);
+      graph.adj.set(key, []);
+    }
+    if (prev !== undefined && prevKey !== undefined && key !== prevKey) {
+      const lengthM = haversineM(prev, point);
+      graph.adj.get(prevKey)!.push({ to: key, lengthM, colors: [], wayId: UNMARKED_WAY_ID });
+      graph.adj.get(key)!.push({ to: prevKey, lengthM, colors: [], wayId: UNMARKED_WAY_ID });
+    }
+    prev = point;
+    prevKey = key;
+  }
+  return true;
+}

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildTrailGraph, nearestVertex, vertexKey } from '../src/graph';
+import { addUnmarkedPath, buildTrailGraph, nearestVertex, vertexKey } from '../src/graph';
 import { haversineM, type LonLat } from '../src/geo';
 import type { OverpassRelation, OverpassResponse } from '../src/overpass';
 
@@ -155,5 +155,32 @@ describe('nearestVertex', () => {
 
   it('returns null for an empty graph', () => {
     expect(nearestVertex({ vertices: new Map(), adj: new Map() }, A, 1000)).toBeNull();
+  });
+});
+
+describe('addUnmarkedPath', () => {
+  const summit: LonLat = [19.5, 49.503]; // ~330 m north of A
+  const nearA: LonLat = [19.50002, 49.50001]; // ~2 m from A
+
+  it('connects a summit to the trail graph with uncoloured edges, snapping the end to the nearest vertex', () => {
+    const { graph } = buildTrailGraph([relation(1, { colour: 'red' }, [{ ref: 10, coords: [A, B, C] }])]);
+
+    const added = addUnmarkedPath(graph, [summit, [19.5, 49.5015], nearA], 30);
+
+    expect(added).toBe(true);
+    expect(nearestVertex(graph, summit, 1)).toBe(vertexKey(summit));
+    const middle = graph.adj.get(vertexKey([19.5, 49.5015]))!;
+    expect(middle.map((e) => e.to).sort()).toEqual([vertexKey(A), vertexKey(summit)].sort());
+    expect(middle.every((e) => e.colors.length === 0 && e.wayId < 0)).toBe(true);
+    // the snapped end is the existing vertex A, not a new one 2 m away
+    expect(graph.vertices.has(vertexKey(nearA))).toBe(false);
+    expect(graph.adj.get(vertexKey(A))!.some((e) => e.to === vertexKey([19.5, 49.5015]))).toBe(true);
+  });
+
+  it('adds nothing when the path end is farther than snapM from the graph', () => {
+    const { graph } = buildTrailGraph([relation(1, { colour: 'red' }, [{ ref: 10, coords: [A, B, C] }])]);
+    const before = graph.vertices.size;
+    expect(addUnmarkedPath(graph, [summit, [19.5, 49.502]], 30)).toBe(false);
+    expect(graph.vertices.size).toBe(before);
   });
 });

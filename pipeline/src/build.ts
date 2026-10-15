@@ -8,8 +8,14 @@ import {
   type TrailFeature,
 } from '../../src/data/schema';
 import { createDemSampler, type FetchTile } from './elevation';
-import { clipLineToRadius, roundCoord, simplifyLine, type LonLat } from './geo';
-import { buildTrailGraph, nearestVertex, type SkippedRelation, type TrailPart } from './graph';
+import { clipLineToRadius, lineLengthM, roundCoord, simplifyLine, type LonLat } from './geo';
+import {
+  addUnmarkedPath,
+  buildTrailGraph,
+  nearestVertex,
+  type SkippedRelation,
+  type TrailPart,
+} from './graph';
 import {
   applyRenames,
   excludedTrailheads,
@@ -59,6 +65,8 @@ export interface PeakReport {
 export const QUERY_RADIUS_M = 10_000;
 /** The summit must lie this close to a trail vertex. */
 export const SUMMIT_SNAP_M = 150;
+/** The end of an override `summitPath` must lie this close to a trail vertex. */
+export const SUMMIT_PATH_SNAP_M = 30;
 /** Larger peak files are reported as a warning. */
 export const MAX_PEAK_FILE_BYTES = 500_000;
 
@@ -138,6 +146,17 @@ export async function buildPeak(
     }
   }
 
+  const summitPath = peakOverrides?.summitPath;
+  if (summitPath !== undefined) {
+    if (addUnmarkedPath(graph, summitPath, SUMMIT_PATH_SNAP_M)) {
+      report.warnings.push(
+        `summit reached by an unmarked path of ${Math.round(lineLengthM(summitPath))} m (override summitPath)`,
+      );
+    } else {
+      report.errors.push(`override summitPath: its last point is not within ${SUMMIT_PATH_SNAP_M} m of a trail`);
+    }
+  }
+
   const summit = nearestVertex(graph, [src.lon, src.lat], SUMMIT_SNAP_M);
   if (summit === null) {
     report.errors.push(`no trail vertex within ${SUMMIT_SNAP_M} m of the summit`);
@@ -167,7 +186,7 @@ export async function buildPeak(
     const enriched = [];
     for (const candidate of candidates) enriched.push(await enrichRoute(candidate, sampler));
 
-    const selected = selectRoutes(enriched);
+    const selected = selectRoutes(enriched, { maxCount: peakOverrides?.maxRoutes ?? 3 });
     routes = applyRenames(
       selected.map((r) => toRoute(src.id, r, src.name)),
       deps.overrides,
