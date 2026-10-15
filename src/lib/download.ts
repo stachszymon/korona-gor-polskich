@@ -6,6 +6,9 @@ export function downloadText(filename: string, content: string, mime: string): v
   link.download = filename;
   document.body.appendChild(link);
   link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  // Some browsers cancel the download if the blob URL is revoked synchronously after click().
+  setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
 }
