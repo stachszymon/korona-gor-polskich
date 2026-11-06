@@ -97,7 +97,7 @@ function makeDeps(sources: PeakSource[], opts: MockOptions & { overrides?: Route
 }
 
 describe('buildPeak', () => {
-  it('buildPeak on Babia Góra fixture yields 1–3 routes that pass PeakDetailSchema and end within 150 m of the summit', async () => {
+  it('buildPeak on Babia Góra fixture yields 1–20 routes that pass PeakDetailSchema and end within 150 m of the summit', async () => {
     const { deps, overpass } = makeDeps([BABIA]);
 
     const { detail, report } = await buildPeak(BABIA, deps);
@@ -105,7 +105,7 @@ describe('buildPeak', () => {
     expect(PeakDetailSchema.safeParse(detail).success).toBe(true);
     expect(detail.peakId).toBe('babia-gora');
     expect(detail.routes.length).toBeGreaterThanOrEqual(1);
-    expect(detail.routes.length).toBeLessThanOrEqual(3);
+    expect(detail.routes.length).toBeLessThanOrEqual(20);
     for (const route of detail.routes) {
       const end = route.geometry.coordinates.at(-1)!;
       expect(haversineM([end[0], end[1]], [BABIA.lon, BABIA.lat])).toBeLessThanOrEqual(150);
@@ -511,13 +511,13 @@ describe('buildAll', () => {
     expect(logs.join('\n')).toMatch(/pilsko/);
   });
 
-  it('report lists skipped relations and size warning above 500000 bytes', async () => {
-    // Disconnected zigzag ways whose points survive 5 m simplification: 30 x 1000 points, about 600 kB.
+  it('report lists skipped relations and size warning above 1500000 bytes', async () => {
+    // Disconnected zigzag ways whose points survive 5 m simplification: 30 x 3000 points, about 1.8 MB.
     const zigzagWay = (ref: number) => ({
       type: 'way' as const,
       ref,
       role: '',
-      geometry: Array.from({ length: 1000 }, (_, i) => ({
+      geometry: Array.from({ length: 3000 }, (_, i) => ({
         // inside the 10 km radius (drawn trails are clipped to it)
         lat: 49.6 + i * 0.000005,
         lon: 19.6 + ref * 0.001 + (i % 2) * 0.0002,
@@ -536,14 +536,14 @@ describe('buildAll', () => {
     const report = reports[0]!;
     expect(ok).toBe(true); // a size warning does not fail the build
     expect(report.sizeBytes).toBeGreaterThan(MAX_PEAK_FILE_BYTES);
-    expect(MAX_PEAK_FILE_BYTES).toBe(500_000);
-    expect(report.warnings).toEqual([expect.stringContaining('500000')]);
+    expect(MAX_PEAK_FILE_BYTES).toBe(1_500_000);
+    expect(report.warnings).toEqual([expect.stringContaining('1500000')]);
     expect(report.skipped.map((s) => s.id)).toEqual([15482388, 19308791]);
     const text = formatReport([report]);
     expect(text).toContain('babia-gora');
     expect(text).toContain('15482388');
     expect(text).toContain('no-color');
-    expect(text).toContain('500000');
+    expect(text).toContain('1500000');
   });
 
   it('logs progress per peak', async () => {

@@ -132,9 +132,10 @@ describe('route overrides', () => {
     await expect(loadOverrides(broken)).rejects.toThrow(broken);
   });
 
-  it('accepts maxRoutes between 1 and 3', () => {
+  it('accepts maxRoutes between 1 and 20', () => {
     expect(RouteOverridesSchema.parse({ rysy: { maxRoutes: 2 } })).toEqual({ rysy: { maxRoutes: 2 } });
-    for (const bad of [0, 4, 1.5]) {
+    expect(RouteOverridesSchema.parse({ rysy: { maxRoutes: 20 } })).toEqual({ rysy: { maxRoutes: 20 } });
+    for (const bad of [0, 21, 1.5]) {
       expect(RouteOverridesSchema.safeParse({ rysy: { maxRoutes: bad } }).success).toBe(false);
     }
   });

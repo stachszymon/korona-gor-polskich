@@ -157,22 +157,22 @@ describe('PeakDetailSchema', () => {
     expect(() => PeakDetailSchema.parse(negative)).toThrow();
   });
 
-  it('rejects more than 3 routes', () => {
+  it('rejects more than 20 routes', () => {
     const bad = clone(specPeakDetail);
-    bad.routes = [0, 1, 2, 3].map((i) => ({
+    bad.routes = Array.from({ length: 21 }, (_, i) => ({
       ...clone(first(specPeakDetail.routes)),
       id: `babia-gora--start-${i}`,
     }));
     expect(() => PeakDetailSchema.parse(bad)).toThrow();
   });
 
-  it('accepts exactly 3 routes', () => {
+  it('accepts exactly 20 routes', () => {
     const ok = clone(specPeakDetail);
-    ok.routes = [0, 1, 2].map((i) => ({
+    ok.routes = Array.from({ length: 20 }, (_, i) => ({
       ...clone(first(specPeakDetail.routes)),
       id: `babia-gora--start-${i}`,
     }));
-    expect(PeakDetailSchema.parse(ok).routes).toHaveLength(3);
+    expect(PeakDetailSchema.parse(ok).routes).toHaveLength(20);
   });
 
   it('rejects a route id without the peak--start separator', () => {
@@ -221,12 +221,18 @@ describe('PeaksIndexSchema', () => {
     expect(() => PeaksIndexSchema.parse(bad)).toThrow();
   });
 
-  it('rejects routeCount above 3 or below 0', () => {
-    for (const routeCount of [4, -1]) {
+  it('rejects routeCount above 20 or below 0', () => {
+    for (const routeCount of [21, -1]) {
       const bad = clone(specPeaksIndex);
       first(bad.peaks).routeCount = routeCount;
       expect(() => PeaksIndexSchema.parse(bad)).toThrow();
     }
+  });
+
+  it('accepts routeCount 20', () => {
+    const ok = clone(specPeaksIndex);
+    first(ok.peaks).routeCount = 20;
+    expect(() => PeaksIndexSchema.parse(ok)).not.toThrow();
   });
 
   it('rejects a fractional elevation', () => {

@@ -68,7 +68,7 @@ export const SUMMIT_SNAP_M = 150;
 /** The end of an override `summitPath` must lie this close to a trail vertex. */
 export const SUMMIT_PATH_SNAP_M = 30;
 /** Larger peak files are reported as a warning. */
-export const MAX_PEAK_FILE_BYTES = 500_000;
+export const MAX_PEAK_FILE_BYTES = 1_500_000;
 
 const TRAIL_SIMPLIFY_TOLERANCE_M = 5;
 
@@ -190,9 +190,9 @@ export async function buildPeak(
     const enriched = [];
     for (const candidate of candidates) enriched.push(await enrichRoute(candidate, sampler));
 
-    const selected = selectRoutes(enriched, { maxCount: peakOverrides?.maxRoutes ?? 3 });
+    const selected = selectRoutes(enriched, { maxCount: peakOverrides?.maxRoutes ?? 20 });
     routes = applyRenames(
-      selected.map((r) => toRoute(src.id, r, src.name)),
+      selected.map((r) => toRoute(src.id, r)),
       deps.overrides,
       src.id,
     );

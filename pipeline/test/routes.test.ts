@@ -259,28 +259,41 @@ function enriched(id: string, start: LonLat, durationMin: number, edges: Record<
 const startAt = (i: number): LonLat => [19.3 + i * 0.05, 49.65];
 
 describe('selectRoutes', () => {
-  it('selectRoutes picks at most 3, fastest first', () => {
-    const routes = [200, 100, 300, 150, 250].map((d, i) =>
-      enriched(`r${d}`, startAt(i), d, { [`e${i}`]: 5000 }),
-    );
-    expect(selectRoutes(routes).map((r) => r.trailhead.id)).toEqual(['r100', 'r150', 'r200']);
-    expect(selectRoutes(routes, { maxCount: 2 }).map((r) => r.trailhead.id)).toEqual(['r100', 'r150']);
+  it('selectRoutes keeps up to 20 routes by default, fastest first', () => {
+    const routes = Array.from({ length: 25 }, (_, i) => enriched(`r${i}`, startAt(i), 100 + i, { [`e${i}`]: 5000 }));
+    const twenty = Array.from({ length: 20 }, (_, i) => `r${i}`);
+    expect(selectRoutes(routes).map((r) => r.trailhead.id)).toEqual(twenty);
+    expect(selectRoutes(routes, { maxCount: 2 }).map((r) => r.trailhead.id)).toEqual(['r0', 'r1']);
   });
 
-  it('selectRoutes rejects a start within 2 km of an already selected start', () => {
+  it('starts 1.2 km apart are both kept, 0.8 km apart are not', () => {
     const base: LonLat = [19.5, 49.65];
+    const at1200: LonLat = [base[0] + 0.0167, base[1]];
+    const at800: LonLat = [base[0] + 0.011, base[1]];
+    expect(haversineM(base, at1200)).toBeGreaterThan(1200);
+    expect(haversineM(base, at800)).toBeLessThan(800);
+
     const a = enriched('a', base, 100, { e1: 5000 });
-    const b = enriched('b', [base[0] + 0.02, base[1]], 120, { e2: 5000 }); // ~1.4 km from a
-    const c = enriched('c', [base[0] + 0.035, base[1]], 140, { e3: 5000 }); // ~2.5 km from a
-    expect(selectRoutes([c, b, a]).map((r) => r.trailhead.id)).toEqual(['a', 'c']);
+    const far = enriched('far', at1200, 120, { e2: 5000 });
+    const near = enriched('near', at800, 120, { e3: 5000 });
+    expect(selectRoutes([a, far]).map((r) => r.trailhead.id)).toEqual(['a', 'far']);
+    expect(selectRoutes([a, near]).map((r) => r.trailhead.id)).toEqual(['a']);
   });
 
-  it('selectRoutes rejects a route sharing more than 50% of its length with a selected route', () => {
-    const a = enriched('a', startAt(0), 100, { e1: 1000, e2: 1000 });
-    const b = enriched('b', startAt(1), 120, { e1: 1000, e3: 900 }); // 1000/1900 > 0.5 with a
-    const c = enriched('c', startAt(2), 140, { e2: 1000, e4: 1000 }); // exactly 0.5 with a: allowed
-    const d = enriched('d', startAt(3), 160, { e4: 1000, e5: 500 }); // 0 with a, 2/3 with c
-    expect(selectRoutes([a, b, c, d]).map((r) => r.trailhead.id)).toEqual(['a', 'c']);
+  it('75% overlap is kept, 85% is rejected (default maxOverlap 0.8, 80% itself is kept)', () => {
+    const a = enriched('a', startAt(0), 100, { e1: 1000 });
+    const seventyFive = enriched('seventy-five', startAt(1), 120, { e1: 750, e2: 250 }); // 750/1000 shared with a
+    const eighty = enriched('eighty', startAt(2), 130, { e1: 800, e3: 200 }); // exactly 0.8
+    const eightyFive = enriched('eighty-five', startAt(3), 140, { e1: 850, e4: 150 }); // 850/1000 shared with a
+    expect(selectRoutes([a, seventyFive]).map((r) => r.trailhead.id)).toEqual(['a', 'seventy-five']);
+    expect(selectRoutes([a, eighty]).map((r) => r.trailhead.id)).toEqual(['a', 'eighty']);
+    expect(selectRoutes([a, eightyFive]).map((r) => r.trailhead.id)).toEqual(['a']);
+  });
+
+  it('the fastest candidate is always kept even when every other overlaps it', () => {
+    const fastest = enriched('fastest', startAt(0), 100, { e1: 1000 });
+    const others = [1, 2, 3].map((i) => enriched(`other-${i}`, startAt(i), 100 + i, { e1: 900, [`x${i}`]: 100 }));
+    expect(selectRoutes([fastest, ...others]).map((r) => r.trailhead.id)).toEqual(['fastest']);
   });
 
   it('breaks duration ties by length, then trailhead id', () => {
@@ -301,11 +314,11 @@ describe('toRoute', () => {
     const [candidate] = candidateRoutes(g, vertexKey(SUMMIT), [trailhead]);
     const r = await enrichRoute(candidate!, fakeSampler);
 
-    const route = toRoute('babia-gora', r, 'Babia Góra');
+    const route = toRoute('babia-gora', r);
 
     expect(RouteSchema.parse(route)).toEqual(route);
     expect(route.id).toBe('babia-gora--zawoja-markowa');
-    expect(route.name).toBe('Zawoja Markowa → Babia Góra');
+    expect(route.name).toBe('Z Zawoja Markowa');
     expect(route.trailhead).toEqual({ name: 'Zawoja Markowa', lat: 49.61, lon: 19.5294, kind: 'parking' });
     expect(route.distanceKm).toBe(Math.round(r.lengthM / 100) / 10);
     expect(route.ascentM).toBe(r.ascentM);

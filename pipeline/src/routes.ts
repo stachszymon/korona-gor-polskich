@@ -279,9 +279,9 @@ const startOf = (r: CandidateRoute): LonLat => [r.trailhead.lon, r.trailhead.lat
  * selected start and at most `maxOverlap` of its length is shared with any selected route.
  */
 export function selectRoutes(routes: EnrichedRoute[], opts: SelectRoutesOptions = {}): EnrichedRoute[] {
-  const maxCount = opts.maxCount ?? 3;
-  const minStartSeparationM = opts.minStartSeparationM ?? 2000;
-  const maxOverlap = opts.maxOverlap ?? 0.5;
+  const maxCount = opts.maxCount ?? 20;
+  const minStartSeparationM = opts.minStartSeparationM ?? 1000;
+  const maxOverlap = opts.maxOverlap ?? 0.8;
 
   const ranked = [...routes].sort(
     (a, b) =>
@@ -305,7 +305,7 @@ export function selectRoutes(routes: EnrichedRoute[], opts: SelectRoutesOptions 
  * Converts a selected route to the shared schema: simplified (Douglas-Peucker, 5 m)
  * and rounded geometry, each point keeping the height of its nearest `coords3d` point.
  */
-export function toRoute(peakId: string, r: EnrichedRoute, peakName: string): Route {
+export function toRoute(peakId: string, r: EnrichedRoute): Route {
   const flat = r.coords3d.map((p): LonLat => [p[0], p[1]]);
   const simplified = simplifyLine(flat, SIMPLIFY_TOLERANCE_M);
 
@@ -329,7 +329,7 @@ export function toRoute(peakId: string, r: EnrichedRoute, peakName: string): Rou
   const { trailhead } = r;
   return {
     id: `${peakId}--${trailhead.id}`,
-    name: `${trailhead.name} → ${peakName}`,
+    name: `Z ${trailhead.name}`,
     trailhead: {
       name: trailhead.name,
       lat: roundCoord(trailhead.lat),

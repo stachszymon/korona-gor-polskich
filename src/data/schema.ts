@@ -19,7 +19,7 @@ export const PeakSummarySchema = z.object({
   elevation: z.number().int(),
   lat: latitude,
   lon: longitude,
-  routeCount: z.number().int().min(0).max(3),
+  routeCount: z.number().int().min(0).max(20),
 });
 export type PeakSummary = z.infer<typeof PeakSummarySchema>;
 
@@ -97,6 +97,6 @@ export const PeakDetailSchema = z.object({
     type: z.literal('FeatureCollection'),
     features: z.array(TrailFeatureSchema),
   }),
-  routes: z.array(RouteSchema).max(3),
+  routes: z.array(RouteSchema).max(20),
 });
 export type PeakDetail = z.infer<typeof PeakDetailSchema>;

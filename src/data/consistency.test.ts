@@ -71,14 +71,14 @@ describe('generated data in public/data', () => {
     expect(new Set(index.peaks.map((p) => p.id)).size).toBe(KGP_PEAK_COUNT);
   });
 
-  it.skipIf(!hasLegs)('every peak file passes PeakDetailSchema and has 1–3 routes', () => {
+  it.skipIf(!hasLegs)('every peak file passes PeakDetailSchema and has 1–20 routes', () => {
     const index = loadIndex();
     const details = loadDetails();
     expect(details.map((d) => d.fileId).sort()).toEqual(index.peaks.map((p) => p.id).sort());
     for (const { fileId, detail } of details) {
       expect(detail.peakId, fileId).toBe(fileId);
       expect(detail.routes.length, fileId).toBeGreaterThanOrEqual(1);
-      expect(detail.routes.length, fileId).toBeLessThanOrEqual(3);
+      expect(detail.routes.length, fileId).toBeLessThanOrEqual(20);
       for (const route of detail.routes) {
         expect(route.id.startsWith(`${fileId}--`), route.id).toBe(true);
       }
