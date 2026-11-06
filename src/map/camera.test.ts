@@ -1,4 +1,4 @@
-import { fitAdjustment, fitsInViewport, frameRoute, minZoomForBounds, padBounds, projectedBox, type FramingMap } from './camera';
+import { fitAdjustment, fitsInViewport, frameRoute, coverBounds, maxPitchForZoom, minZoomForBounds, padBounds, projectedBox, type FramingMap } from './camera';
 
 const viewport = { width: 800, height: 600 };
 
@@ -253,5 +253,79 @@ describe('padBounds', () => {
     const input: [number, number, number, number] = [10, 40, 20, 50];
     padBounds(input, 0.1);
     expect(input).toEqual([10, 40, 20, 50]);
+  });
+});
+
+describe('maxPitchForZoom', () => {
+  it('flattens the camera to 15 degrees near the minimum zoom', () => {
+    expect(maxPitchForZoom(6, 6)).toBe(15);
+    expect(maxPitchForZoom(6.4, 6)).toBe(15);
+    expect(maxPitchForZoom(7.49, 6)).toBe(15);
+  });
+
+  it('frees the pitch 1.5 zoom levels above the minimum', () => {
+    expect(maxPitchForZoom(7.5, 6)).toBe(80);
+    expect(maxPitchForZoom(12.5, 6)).toBe(80);
+  });
+
+  it('follows the minimum zoom, not absolute zoom levels', () => {
+    expect(maxPitchForZoom(8, 7)).toBe(15);
+    expect(maxPitchForZoom(8.5, 7)).toBe(80);
+  });
+});
+
+describe('coverBounds', () => {
+  type Bounds = [number, number, number, number];
+  const mercY = (lat: number) => {
+    const rad = (lat * Math.PI) / 180;
+    return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
+  };
+  const size = ([west, south, east, north]: Bounds) => ({ dx: (east - west) / 360, dy: mercY(south) - mercY(north) });
+  const wide: Bounds = [15, 48.6, 23.2, 51.4];
+
+  it('keeps the bounds when the window has the same shape', () => {
+    const { dx, dy } = size(wide);
+    const covered = coverBounds(wide, 1000 * dx, 1000 * dy);
+    for (let i = 0; i < 4; i++) expect(covered[i]).toBeCloseTo(wide[i]!, 6);
+  });
+
+  it('grows the bounds north and south, evenly, when the window is taller than they are wide', () => {
+    const covered = coverBounds(wide, 920, 718);
+    expect(covered[0]).toBe(wide[0]);
+    expect(covered[2]).toBe(wide[2]);
+    expect(covered[1]).toBeLessThan(wide[1]);
+    expect(covered[3]).toBeGreaterThan(wide[3]);
+    const { dx, dy } = size(covered);
+    expect(dx / dy).toBeCloseTo(920 / 718, 6);
+    // Evenly in Mercator space: the centre does not move.
+    expect((mercY(covered[1]) + mercY(covered[3])) / 2).toBeCloseTo((mercY(wide[1]) + mercY(wide[3])) / 2, 9);
+  });
+
+  it('grows the bounds east and west when the window is wider than they are', () => {
+    const covered = coverBounds(wide, 3000, 300);
+    expect(covered[1]).toBeCloseTo(wide[1], 9);
+    expect(covered[3]).toBeCloseTo(wide[3], 9);
+    expect(covered[0]).toBeLessThan(wide[0]);
+    expect(covered[2]).toBeGreaterThan(wide[2]);
+    const { dx, dy } = size(covered);
+    expect(dx / dy).toBeCloseTo(3000 / 300, 6);
+  });
+
+  it('lets minZoomForBounds fit both dimensions at once, so the window is exactly filled', () => {
+    for (const [w, h] of [
+      [920, 718],
+      [360, 640],
+      [1560, 998],
+    ] as const) {
+      const covered = coverBounds(wide, w, h);
+      const zoom = minZoomForBounds(covered, w, h);
+      const { dx, dy } = size(covered);
+      expect(dx * 512 * 2 ** zoom).toBeCloseTo(w, 3);
+      expect(dy * 512 * 2 ** zoom).toBeCloseTo(h, 3);
+    }
+  });
+
+  it('returns the bounds unchanged for a degenerate window', () => {
+    expect(coverBounds(wide, 0, 0)).toEqual(wide);
   });
 });

@@ -118,6 +118,51 @@ export function padBounds(
   return [Math.max(west - dLon, -180), Math.max(south - dLat, -85), Math.min(east + dLon, 180), Math.min(north + dLat, 85)];
 }
 
+/**
+ * `bounds` grown, evenly on both sides, in the one dimension where a `widthPx` x `heightPx` window is relatively
+ * larger, so that the bounds have the window's shape. MapLibre never shows anything outside `maxBounds`: for
+ * bounds of a different shape it zooms in until the window is filled, which crops the long side. With bounds
+ * of the window's shape, `minZoomForBounds` shows the whole of the original bounds. Limited to the Web Mercator
+ * world; a degenerate window leaves the bounds unchanged.
+ */
+export function coverBounds(
+  bounds: readonly [number, number, number, number],
+  widthPx: number,
+  heightPx: number,
+): [number, number, number, number] {
+  const [west, south, east, north] = bounds;
+  if (!(widthPx > 0 && heightPx > 0)) return [west, south, east, north];
+  const dx = (east - west) / 360;
+  const yTop = mercatorY(north);
+  const yBottom = mercatorY(south);
+  const dy = yBottom - yTop;
+  const wantedDy = (heightPx * dx) / widthPx;
+  if (wantedDy > dy) {
+    const grow = (wantedDy - dy) / 2;
+    const clampLat = (lat: number) => Math.min(Math.max(lat, -85), 85);
+    return [west, clampLat(latitudeOf(yBottom + grow)), east, clampLat(latitudeOf(yTop - grow))];
+  }
+  const wantedDx = (widthPx * dy) / heightPx;
+  const growDeg = ((wantedDx - dx) / 2) * 360;
+  return [Math.max(west - growDeg, -180), south, Math.min(east + growDeg, 180), north];
+}
+
+/** Highest pitch the map allows (also the `maxPitch` the map is created with). */
+export const MAX_PITCH = 80;
+/** Pitch limit while zoomed out close to the minimum zoom. */
+const OVERVIEW_MAX_PITCH = 15;
+/** The overview pitch limit holds below `minZoom` plus this many zoom levels. */
+const OVERVIEW_ZOOM_RANGE = 1.5;
+
+/**
+ * The highest pitch allowed at `zoom`. A tilted camera sees a wide trapezoid, and MapLibre keeps all of it
+ * inside `maxBounds`, so a tilted overview of a wide area cannot show its corners. Close to `minZoom` the
+ * camera is therefore kept almost top-down; zooming in beyond `minZoom + 1.5` frees the full pitch.
+ */
+export function maxPitchForZoom(zoom: number, minZoom: number): number {
+  return zoom < minZoom + OVERVIEW_ZOOM_RANGE ? OVERVIEW_MAX_PITCH : MAX_PITCH;
+}
+
 /** Side of a Web Mercator tile in pixels (MapLibre's world is `512 * 2^zoom` px wide). */
 const TILE_SIZE = 512;
 
@@ -125,6 +170,11 @@ const TILE_SIZE = 512;
 function mercatorY(lat: number): number {
   const rad = (lat * Math.PI) / 180;
   return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
+}
+
+/** Latitude of a Web Mercator `y` (0 at the north edge of the world, 1 at the south edge). */
+function latitudeOf(y: number): number {
+  return (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
 }
 
 /**

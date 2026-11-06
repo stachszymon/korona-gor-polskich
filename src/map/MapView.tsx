@@ -5,7 +5,7 @@ import type { MapLayerMouseEvent, MapMouseEvent, MapTouchEvent, StyleSpecificati
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MountainArea, PeakDetail, PeakSummary, Route } from '../data/schema';
 import { formatDistance, formatDuration } from '../ui/format';
-import { frameRoute, minZoomForBounds, padBounds } from './camera';
+import { coverBounds, frameRoute, MAX_PITCH, maxPitchForZoom, minZoomForBounds, padBounds } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { labelRestrictions } from './labels';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
@@ -90,13 +90,8 @@ const START_ZOOM = 6.5;
 const ROUTE_PITCH = 48;
 const ROUTE_PADDING = 60;
 const ROUTE_EASE_MS = 1200;
-/**
- * Share of the area's span added on each side of the camera limits. MapLibre keeps the whole pitched
- * viewport (the wide far edge included) inside `maxBounds`, so at the default pitch tight bounds force a zoom
- * at which the near corners and the Tarnica / Wysoka Kopa peaks fall off-screen. Measured: 8% is not enough at
- * 1280x800, 30% shows every peak in the overview.
- */
-const BOUNDS_PADDING = 0.3;
+/** Share of the area's span added on each side of the camera limits, so the edge of the area is not hard against the screen edge. */
+const BOUNDS_PADDING = 0.08;
 const ZOOM_OUT_STEP = 0.1;
 const MAX_ZOOM_OUT_STEPS = 30;
 
@@ -209,7 +204,7 @@ export function MapView({
       try {
         // The bundler inlines maplibre-gl, so its default worker location (next to the module) does not exist.
         maplibregl.setWorkerUrl(workerUrl);
-        map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 50, maxPitch: 80, canvasContextAttributes: { antialias: true } });
+        map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 0, maxPitch: MAX_PITCH, canvasContextAttributes: { antialias: true } });
         mapRef.current = map;
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
@@ -323,17 +318,30 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !area) return;
-    // Slack around the bounds, see BOUNDS_PADDING.
-    const bounds = padBounds(area.bounds, BOUNDS_PADDING);
+    const padded = padBounds(area.bounds, BOUNDS_PADDING);
+    // Close to minZoom the camera stays almost top-down: a tilted view of this wide area would clip its corners.
+    let pitchLimit: number | null = null;
+    const limitPitch = () => {
+      const limit = maxPitchForZoom(map.getZoom(), map.getMinZoom());
+      if (limit === pitchLimit) return;
+      pitchLimit = limit;
+      map.setMaxPitch(limit);
+    };
     const fitMinZoom = () => {
       const { clientWidth, clientHeight } = map.getContainer();
-      map.setMinZoom(minZoomForBounds(bounds, clientWidth, clientHeight));
+      // MapLibre never shows anything outside the limits, so for a window of another shape it would zoom in and crop
+      // the area. Limits of the window's shape let `minZoom` show the whole area.
+      const limits = coverBounds(padded, clientWidth, clientHeight);
+      map.setMaxBounds(limits);
+      map.setMinZoom(minZoomForBounds(limits, clientWidth, clientHeight));
+      limitPitch();
     };
-    map.setMaxBounds(bounds);
     fitMinZoom();
     map.on('resize', fitMinZoom);
+    map.on('zoom', limitPitch);
     return () => {
       map.off('resize', fitMinZoom);
+      map.off('zoom', limitPitch);
     };
   }, [ready, area]);
 
@@ -343,7 +351,7 @@ export function MapView({
     const bounds = boundsOf(peaks.map((p) => [p.lon, p.lat]));
     if (!bounds) return;
     initialViewDone.current = true;
-    map.fitBounds(bounds, { padding: 40, pitch: 50, duration: 0 });
+    map.fitBounds(bounds, { padding: 40, pitch: 0, duration: 0 });
     keepInView(map, bounds, 40);
   }, [ready, peaks]);
 
