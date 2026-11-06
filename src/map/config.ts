@@ -22,3 +22,10 @@ export const CONTOUR_THRESHOLDS: Record<number, [number, number]> = {
   13: [50, 250],
   14: [20, 100],
 };
+
+/** Veil over everything outside the mountain areas, and the line drawn along their edge. */
+export const MASK_FILL_HEX = '#f4f1ea';
+export const MASK_FILL_OPACITY = 0.72;
+export const MASK_OUTLINE_HEX = '#8a7a5a';
+export const MASK_OUTLINE_WIDTH = 1.2;
+export const MASK_OUTLINE_OPACITY = 0.55;

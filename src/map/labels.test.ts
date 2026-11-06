@@ -1,4 +1,4 @@
-import { featureFilter, validateStyleMin } from '@maplibre/maplibre-gl-style-spec';
+import { featureFilter, validateStyleMin, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import type { MultiPolygon } from 'geojson';
 import type { FilterSpecification, StyleSpecification } from 'maplibre-gl';
 import libertyLayers from '../test/fixtures/liberty-layers.json';
@@ -93,7 +93,8 @@ describe('the within filter on real features', () => {
       return { x: ((lon + 180) / 360) * n, y: ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * n };
     };
     const first = toWorld(coordinates[0]!);
-    const canonical = { z: ZOOM, x: Math.floor(first.x), y: Math.floor(first.y) };
+    // Only z/x/y are read by `within`; the full tile id class is not needed.
+    const canonical = { z: ZOOM, x: Math.floor(first.x), y: Math.floor(first.y) } as unknown as ICanonicalTileID;
     const geometry = coordinates.map((c) => {
       const w = toWorld(c);
       return { x: Math.round((w.x - canonical.x) * 8192), y: Math.round((w.y - canonical.y) * 8192) };

@@ -6,10 +6,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { PeakDetail, PeakSummary } from '../data/schema';
 import { frameRoute } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
+import { labelRestrictions } from './labels';
+import { mountainAreas } from './mask';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
 import {
   contourLayers,
   contourSourceSpec,
+  MASK_SOURCE_ID,
+  maskLayers,
+  maskSource,
+  maskToGeoJSON,
   overlayLayers,
   overlaySources,
   peaksToGeoJSON,
@@ -159,6 +165,8 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
           map.addSource('contours', contourSourceSpec(getDemSource()));
           const anchor = firstSymbolLayerId(map.getStyle().layers);
           for (const layer of contourLayers()) map.addLayer(layer, anchor);
+          map.addSource(MASK_SOURCE_ID, maskSource());
+          for (const layer of maskLayers()) map.addLayer(layer);
           for (const [id, spec] of Object.entries(overlaySources())) map.addSource(id, spec);
           for (const layer of overlayLayers()) map.addLayer(layer);
           setReady(true);
@@ -195,6 +203,19 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
     if (!ready || !map) return;
     (map.getSource('peaks') as maplibregl.GeoJSONSource | undefined)?.setData(peaksToGeoJSON(peaks, progress));
   }, [ready, peaks, progress]);
+
+  // The mountain areas only change with the set of peaks, not with progress or selection.
+  const peakSetKey = peaks.map((p) => p.id).join(',');
+  useEffect(() => {
+    const map = mapRef.current;
+    const current = latest.current.peaks;
+    if (!ready || !map || current.length === 0) return;
+    const areas = mountainAreas(current);
+    (map.getSource(MASK_SOURCE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(maskToGeoJSON(areas));
+    const { hidden, filters } = labelRestrictions(map.getStyle().layers, areas);
+    for (const id of hidden) map.setLayoutProperty(id, 'visibility', 'none');
+    for (const [id, filter] of Object.entries(filters)) map.setFilter(id, filter);
+  }, [ready, peakSetKey]);
 
   useEffect(() => {
     const map = mapRef.current;
