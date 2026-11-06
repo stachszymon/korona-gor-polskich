@@ -44,6 +44,12 @@
       "colors": [
         "red"
       ],
+      "legs": [
+        {
+          "color": "red",
+          "lengthM": 9500
+        }
+      ],
       "geometry": {
         "type": "LineString",
         "coordinates": [

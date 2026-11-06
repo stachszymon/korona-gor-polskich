@@ -35,6 +35,7 @@ function route(id: string, name: string): Route {
     descentM: 0,
     durationMin: 165,
     colors: ['red'],
+    legs: [{ color: 'red', lengthM: 5000 }],
     geometry: { type: 'LineString', coordinates: [[19.5, 49.6, 800], [19.5294, 49.5731, 1725]] },
     profile: [[0, 800], [5000, 1725]],
   };

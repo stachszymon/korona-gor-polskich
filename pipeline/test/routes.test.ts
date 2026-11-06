@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { RouteSchema } from '../../src/data/schema';
+import { type PttkColor, RouteSchema } from '../../src/data/schema';
 import { haversineM, lineLengthM, type LonLat } from '../src/geo';
 import { vertexKey } from '../src/graph';
 import {
   candidateRoutes,
+  chooseLegs,
   edgeKey,
   enrichRoute,
   type EnrichedRoute,
@@ -51,6 +52,51 @@ describe('shortestPaths', () => {
     addWay(g, line, 1, ['red']);
     const { dist } = shortestPaths(g, vertexKey(line[0]!));
     expect(dist.get(vertexKey(line[1999]!))).toBeCloseTo(lineLengthM(line), 3);
+  });
+});
+
+const step = (colors: PttkColor[], lengthM: number) => ({ colors, lengthM });
+
+describe('chooseLegs', () => {
+  it('chooseLegs keeps one colour across a shared segment', () => {
+    const legs = chooseLegs([step(['red'], 1000), step(['red', 'yellow'], 500), step(['red'], 800)]);
+    expect(legs).toEqual([{ color: 'red', lengthM: 2300 }]);
+  });
+
+  it('chooseLegs switches once when the trail changes', () => {
+    const legs = chooseLegs([step(['red'], 1000), step(['red', 'yellow'], 500), step(['yellow'], 700)]);
+    expect(legs.map((l) => l.color)).toEqual(['red', 'yellow']);
+    expect(legs.reduce((s, l) => s + l.lengthM, 0)).toBe(2200);
+  });
+
+  it('chooseLegs marks unmarked steps as none', () => {
+    const legs = chooseLegs([step(['red'], 1000), step([], 500), step(['red'], 800)]);
+    expect(legs).toEqual([
+      { color: 'red', lengthM: 1000 },
+      { color: 'none', lengthM: 500 },
+      { color: 'red', lengthM: 800 },
+    ]);
+  });
+
+  it('chooseLegs does not count an unmarked step as a colour change', () => {
+    const legs = chooseLegs([step(['red', 'blue'], 1000), step([], 500), step(['blue'], 800)]);
+    expect(legs.map((l) => l.color)).toEqual(['blue', 'none', 'blue']);
+  });
+
+  it('chooseLegs prefers the longer run when changes tie, then PTTK order', () => {
+    // red|yellow in the middle: yellow keeps the long last step, red the short first one.
+    const longer = chooseLegs([step(['red'], 100), step(['red', 'yellow'], 100), step(['yellow'], 900)]);
+    expect(longer.map((l) => l.color)).toEqual(['red', 'yellow']);
+    expect(longer.map((l) => l.lengthM)).toEqual([100, 1000]);
+    // fully symmetric: PTTK order (red before blue) decides
+    const tie = chooseLegs([step(['blue', 'red'], 100)]);
+    expect(tie).toEqual([{ color: 'red', lengthM: 100 }]);
+  });
+
+  it('chooseLegs rounds leg lengths to 10 m and handles no steps or only unmarked steps', () => {
+    expect(chooseLegs([step(['green'], 1234), step(['green'], 1.4)])).toEqual([{ color: 'green', lengthM: 1240 }]);
+    expect(chooseLegs([])).toEqual([]);
+    expect(chooseLegs([step([], 300)])).toEqual([{ color: 'none', lengthM: 300 }]);
   });
 });
 
@@ -113,7 +159,39 @@ describe('candidateRoutes', () => {
 
     const [route] = candidateRoutes(g, vertexKey(SUMMIT), [trailheadAt('start', 'Start', start)]);
 
-    expect(route!.colors).toEqual(['yellow', 'red', 'green', 'blue']);
+    // Green is the one colour shared by the last two edges, so the route changes colour only once.
+    expect(route!.colors).toEqual(['yellow', 'green']);
+    expect(route!.legs.map((l) => l.color)).toEqual(['yellow', 'green']);
+  });
+
+  it('candidate colors on a five-trail shared corridor collapse to the trail actually followed', () => {
+    const g = emptyGraph();
+    const start: LonLat = [19.5294, 49.6];
+    const a: LonLat = [19.5294, 49.59];
+    const b: LonLat = [19.5294, 49.58];
+    addWay(g, [start, a], 1, ['red']);
+    addWay(g, [a, b], 2, ['red', 'blue', 'green', 'yellow']);
+    addWay(g, [b, SUMMIT], 3, ['red']);
+
+    const [route] = candidateRoutes(g, vertexKey(SUMMIT), [trailheadAt('start', 'Start', start)]);
+
+    expect(route!.colors).toEqual(['red']);
+    expect(route!.legs).toHaveLength(1);
+    expect(route!.legs[0]!.color).toBe('red');
+    expect(route!.legs[0]!.lengthM).toBe(Math.round(route!.lengthM / 10) * 10);
+  });
+
+  it('gives unmarked summit path edges a none leg that is left out of colors', () => {
+    const g = emptyGraph();
+    const start: LonLat = [19.5294, 49.6];
+    const a: LonLat = [19.5294, 49.58];
+    addWay(g, [start, a], 1, ['red']);
+    addWay(g, [a, SUMMIT], -1, []);
+
+    const [route] = candidateRoutes(g, vertexKey(SUMMIT), [trailheadAt('start', 'Start', start)]);
+
+    expect(route!.legs.map((l) => l.color)).toEqual(['red', 'none']);
+    expect(route!.colors).toEqual(['red']);
   });
 
   it('keys edges by sorted vertex pair and way id', () => {
@@ -161,6 +239,7 @@ function enriched(id: string, start: LonLat, durationMin: number, edges: Record<
     coords: [start, SUMMIT],
     lengthM,
     colors: ['red'],
+    legs: [{ color: 'red', lengthM: Math.round(lengthM / 10) * 10 }],
     edges: new Map(Object.entries(edges)),
     coords3d: [
       [start[0], start[1], 800],
@@ -233,6 +312,7 @@ describe('toRoute', () => {
     expect(route.descentM).toBe(r.descentM);
     expect(route.durationMin).toBe(r.durationMin);
     expect(route.colors).toEqual(r.colors);
+    expect(route.legs).toEqual(r.legs);
     expect(route.profile).toEqual(r.profile);
 
     const coords = route.geometry.coordinates;

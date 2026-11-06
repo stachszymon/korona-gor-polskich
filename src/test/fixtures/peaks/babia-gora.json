@@ -45,6 +45,16 @@
         "red",
         "yellow"
       ],
+      "legs": [
+        {
+          "color": "red",
+          "lengthM": 5200
+        },
+        {
+          "color": "yellow",
+          "lengthM": 2200
+        }
+      ],
       "geometry": {
         "type": "LineString",
         "coordinates": [
@@ -96,6 +106,12 @@
       "colors": [
         "green"
       ],
+      "legs": [
+        {
+          "color": "green",
+          "lengthM": 8100
+        }
+      ],
       "geometry": {
         "type": "LineString",
         "coordinates": [
@@ -146,6 +162,12 @@
       "durationMin": 215,
       "colors": [
         "blue"
+      ],
+      "legs": [
+        {
+          "color": "blue",
+          "lengthM": 9200
+        }
       ],
       "geometry": {
         "type": "LineString",

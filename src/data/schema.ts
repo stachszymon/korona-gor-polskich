@@ -47,6 +47,16 @@ export const TrailFeatureSchema = z.object({
 });
 export type TrailFeature = z.infer<typeof TrailFeatureSchema>;
 
+export const LEG_COLORS = [...PTTK_COLORS, 'none'] as const;
+export type LegColor = (typeof LEG_COLORS)[number];
+
+/** A stretch of a route followed along one trail colour (`none`: unmarked path). */
+export const LegSchema = z.object({
+  color: z.enum(LEG_COLORS),
+  lengthM: z.number().nonnegative(),
+});
+export type Leg = z.infer<typeof LegSchema>;
+
 export const RouteSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+--[a-z0-9-]+$/),
   name: z.string().min(1),
@@ -61,6 +71,8 @@ export const RouteSchema = z.object({
   descentM: z.number().nonnegative(),
   durationMin: z.number().int().nonnegative(),
   colors: z.array(PttkColorSchema).min(1),
+  /** The same stretches as `colors`, in order from the trailhead, with their length. */
+  legs: z.array(LegSchema).min(1),
   geometry: z.object({
     type: z.literal('LineString'),
     coordinates: z.array(PositionWithElevationSchema),

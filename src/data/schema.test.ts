@@ -29,6 +29,10 @@ const specPeakDetail = {
       descentM: 40,
       durationMin: 210,
       colors: ['red', 'yellow'],
+      legs: [
+        { color: 'red', lengthM: 5200 },
+        { color: 'yellow', lengthM: 2200 },
+      ],
       geometry: { type: 'LineString', coordinates: [[19.5, 49.6, 870]] },
       profile: [
         [0, 870],
@@ -88,6 +92,35 @@ describe('PeakDetailSchema', () => {
     const empty = clone(specPeakDetail);
     first(empty.routes).colors = [];
     expect(() => PeakDetailSchema.parse(empty)).toThrow();
+  });
+
+  it('route without legs is rejected', () => {
+    const bad = clone(specPeakDetail) as Record<string, unknown> & typeof specPeakDetail;
+    delete (first(bad.routes) as { legs?: unknown }).legs;
+    expect(() => PeakDetailSchema.parse(bad)).toThrow();
+  });
+
+  it('leg with colour none is accepted', () => {
+    const ok = clone(specPeakDetail);
+    first(ok.routes).legs = [
+      { color: 'red', lengthM: 6000 },
+      { color: 'none', lengthM: 1400 },
+    ];
+    expect(PeakDetailSchema.parse(ok).routes[0]!.legs[1]!.color).toBe('none');
+  });
+
+  it('rejects an empty legs list, an unknown leg colour and a negative leg length', () => {
+    const empty = clone(specPeakDetail);
+    first(empty.routes).legs = [];
+    expect(() => PeakDetailSchema.parse(empty)).toThrow();
+
+    const unknown = clone(specPeakDetail);
+    first(unknown.routes).legs = [{ color: 'orange', lengthM: 100 }];
+    expect(() => PeakDetailSchema.parse(unknown)).toThrow();
+
+    const negative = clone(specPeakDetail);
+    first(negative.routes).legs = [{ color: 'red', lengthM: -10 }];
+    expect(() => PeakDetailSchema.parse(negative)).toThrow();
   });
 
   it('rejects more than 3 routes', () => {

@@ -11,6 +11,10 @@ const baseRoute: Route = {
   descentM: 40,
   durationMin: 210,
   colors: ['red', 'yellow'],
+  legs: [
+    { color: 'red', lengthM: 5200 },
+    { color: 'yellow', lengthM: 2200 },
+  ],
   geometry: {
     type: 'LineString',
     coordinates: [

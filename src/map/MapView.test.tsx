@@ -167,6 +167,7 @@ const route: Route = {
   descentM: 900,
   durationMin: 300,
   colors: ['red'],
+  legs: [{ color: 'red', lengthM: 10000 }],
   geometry: {
     type: 'LineString',
     coordinates: [
