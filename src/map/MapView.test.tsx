@@ -85,6 +85,10 @@ const h = vi.hoisted(() => {
     }
     /** What `queryRenderedFeatures` returns, by the (first) layer asked for. */
     queryResults: Record<string, { properties: Record<string, unknown> }[]> = {};
+    moving = false;
+    isMoving() {
+      return this.moving;
+    }
     queryRenderedFeatures = vi.fn((_geometry: unknown, options?: { layers?: string[] }) => this.queryResults[options?.layers?.[0] ?? ''] ?? []);
     setPaintProperty(layer: string, prop: string, value: unknown) {
       this.paint[`${layer}.${prop}`] = value;
@@ -154,6 +158,7 @@ const h = vi.hoisted(() => {
     lngLat: unknown = null;
     added = false;
     removed = false;
+    addCount = 0;
     constructor(options: Record<string, unknown>) {
       this.options = options;
       FakePopup.instances.push(this);
@@ -167,6 +172,7 @@ const h = vi.hoisted(() => {
       return this;
     }
     addTo() {
+      this.addCount += 1;
       this.added = true;
       this.removed = false;
       return this;
@@ -638,13 +644,73 @@ describe('MapView', () => {
       expect(popups().some((p) => p.isOpen())).toBe(false);
     });
 
-    it('does not take over the pointer cursor from a peak that sits on the route', async () => {
+    it('a peak on the route has no tooltip, and keeps the pointer cursor when the pointer slides onto it', async () => {
       const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
       over(map, route.id);
+      move(map);
+      expect(map.canvas.style['cursor']).toBe('pointer');
       map.queryResults['peaks'] = [{ properties: { id: 'babia-gora' } }];
       move(map);
+      expect(map.canvas.style['cursor']).toBe('pointer');
       expect(popups().some((p) => p.isOpen())).toBe(false);
-      expect(hoverFilter(map)).not.toEqual(['==', ['get', 'id'], route.id]);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], '']);
+      map.queryResults['peaks'] = [];
+      over(map);
+      move(map);
+      expect(map.canvas.style['cursor']).toBe('');
+    });
+
+    it('a peak alone gets the pointer cursor, and only while the pointer is on it', async () => {
+      const { map } = await renderLoaded(baseProps());
+      map.queryResults['peaks'] = [{ properties: { id: 'babia-gora' } }];
+      move(map);
+      expect(map.canvas.style['cursor']).toBe('pointer');
+      map.queryResults['peaks'] = [];
+      move(map);
+      expect(map.canvas.style['cursor']).toBe('');
+    });
+
+    it('prefers the selected route, then the hovered one, then the first, when routes overlap', async () => {
+      const third: Route = { ...route, id: 'babia-gora--third', name: 'Z Trzeciej' };
+      const all: PeakDetail = { ...detail, routes: [route, second, third] };
+      const { map, rerender } = await renderLoaded(baseProps({ detail: all }));
+      over(map, route.id, second.id, third.id);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], route.id]);
+      // The pointer slides to a spot where the order differs: the route already hovered stays.
+      over(map, third.id, second.id, route.id);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], route.id]);
+      // The selected route beats the hovered one, for hover and for click.
+      rerender(<MapView {...baseProps({ detail: all, selectedRouteId: third.id })} />);
+      over(map, route.id, second.id, third.id);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], third.id]);
+      const props = baseProps({ detail: all, selectedRouteId: second.id });
+      rerender(<MapView {...props} />);
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat }));
+      expect(props.onRouteSelect).toHaveBeenCalledExactlyOnceWith(second.id);
+    });
+
+    it('opens the tooltip once and only moves it while the pointer travels along the route', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      act(() => map.emit('mousemove', { point: { x: 110, y: 85 }, lngLat: { lng: 19.6, lat: 49.7 } }));
+      act(() => map.emit('mousemove', { point: { x: 120, y: 90 }, lngLat: { lng: 19.7, lat: 49.8 } }));
+      const popup = popups().find((p) => p.isOpen())!;
+      expect(popup.addCount).toBe(1);
+      expect(popup.lngLat).toEqual({ lng: 19.7, lat: 49.8 });
+    });
+
+    it('does not query for routes while the map is moving', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      map.moving = true;
+      map.queryRenderedFeatures.mockClear();
+      move(map);
+      expect(map.queryRenderedFeatures).not.toHaveBeenCalled();
+      expect(popups().some((p) => p.isOpen())).toBe(false);
     });
 
     it('clicking a route calls onRouteSelect with its id', async () => {
@@ -659,10 +725,38 @@ describe('MapView', () => {
       const props = baseProps({ detail: twoRoutes });
       const { map } = await renderLoaded(props);
       over(map, route.id);
-      class FakeTouchEvent extends Event {}
-      vi.stubGlobal('TouchEvent', FakeTouchEvent);
-      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat, originalEvent: new FakeTouchEvent('touchend') }));
+      // What the browser hands maplibre for a tap: a click that is a pointer event of type touch.
+      const tap = Object.assign(new MouseEvent('click'), { pointerType: 'touch' });
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat, originalEvent: tap }));
       expect(props.onRouteSelect).toHaveBeenCalledWith(route.id);
+      expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
+        [
+          [100 - 14, 80 - 14],
+          [100 + 14, 80 + 14],
+        ],
+        { layers: ['routes-all'] },
+      );
+    });
+
+    it('a click from a mouse keeps the small hit area', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      const click = Object.assign(new MouseEvent('click'), { pointerType: 'mouse' });
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat, originalEvent: click }));
+      expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
+        [
+          [100 - 6, 80 - 6],
+          [100 + 6, 80 + 6],
+        ],
+        { layers: ['routes-all'] },
+      );
+    });
+
+    it('a click without a pointer type uses the big hit area on a coarse (touch) pointer', async () => {
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(pointer: coarse)' }));
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat, originalEvent: new MouseEvent('click') }));
       expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
         [
           [100 - 14, 80 - 14],

@@ -62,11 +62,24 @@ type Position = [number, number];
 const ROUTE_HIT_PX = 6;
 const ROUTE_TOUCH_HIT_PX = 14;
 
-/** Id of the route under the pointer, or `null`. A peak under the pointer wins: routes end at peaks. */
-function routeIdAt(map: maplibregl.Map, event: MapMouseEvent | MapTouchEvent): string | null {
-  if (map.queryRenderedFeatures(event.point, { layers: ['peaks'] }).length > 0) return null;
-  const touch = typeof TouchEvent !== 'undefined' && event.originalEvent instanceof TouchEvent;
-  const r = touch ? ROUTE_TOUCH_HIT_PX : ROUTE_HIT_PX;
+/** A tap reaches maplibre as a `click` whose pointer event says `touch`; Safari sends a plain mouse event, so ask the device. */
+function isTouch(event: Event | undefined): boolean {
+  const type = (event as PointerEvent | undefined)?.pointerType;
+  if (type) return type === 'touch';
+  return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+}
+
+/**
+ * What is under the pointer: whether a peak is (it wins over routes, which end at peaks) and the route, if any.
+ * Several routes can overlap; prefer the selected one, then the one already hovered, then the first found.
+ */
+function targetAt(
+  map: maplibregl.Map,
+  event: MapMouseEvent | MapTouchEvent,
+  preferred: readonly (string | null | undefined)[],
+): { peak: boolean; routeId: string | null } {
+  if (map.queryRenderedFeatures(event.point, { layers: ['peaks'] }).length > 0) return { peak: true, routeId: null };
+  const r = isTouch(event.originalEvent) ? ROUTE_TOUCH_HIT_PX : ROUTE_HIT_PX;
   const { x, y } = event.point;
   const hits = map.queryRenderedFeatures(
     [
@@ -75,8 +88,9 @@ function routeIdAt(map: maplibregl.Map, event: MapMouseEvent | MapTouchEvent): s
     ],
     { layers: ['routes-all'] },
   );
-  const id: unknown = hits[0]?.properties?.['id'];
-  return typeof id === 'string' ? id : null;
+  const ids = hits.map((hit) => hit.properties?.['id']).filter((id): id is string => typeof id === 'string');
+  const routeId = preferred.find((id) => id != null && ids.includes(id)) ?? ids[0] ?? null;
+  return { peak: false, routeId };
 }
 
 function routeTooltip(route: Route): string {
@@ -170,9 +184,9 @@ export function MapView({
 
   // Latest values for the long-lived map event handlers and the one-off camera moves.
   const routes = detail?.routes;
-  const latest = useRef({ peaks, routes, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError });
+  const latest = useRef({ peaks, routes, selectedRouteId, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError });
   useEffect(() => {
-    latest.current = { peaks, routes, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError };
+    latest.current = { peaks, routes, selectedRouteId, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError };
   });
   /** The route under the mouse pointer; it wins over the one hovered in the list. */
   const mapHoveredRoute = useRef<string | null>(null);
@@ -195,7 +209,6 @@ export function MapView({
     let map: maplibregl.Map | null = null;
     let loaded = false;
     let tooltip: maplibregl.Popup | null = null;
-    let routeCursor = false;
 
     void loadMountainStyle().then(({ style, failed }) => {
       if (cancelled) return;
@@ -216,45 +229,41 @@ export function MapView({
           const id: unknown = event.features?.[0]?.properties?.['id'];
           if (typeof id === 'string') latest.current.onPeakClick(id);
         });
-        map.on('mouseenter', 'peaks', () => {
-          if (map) map.getCanvas().style.cursor = 'pointer';
-        });
-        map.on('mouseleave', 'peaks', () => {
-          if (map) map.getCanvas().style.cursor = '';
-        });
         const hoverMap = map;
         tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'route-tooltip', offset: 12 });
         const clearHover = () => {
           mapHoveredRoute.current = null;
           tooltip?.remove();
-          if (routeCursor) hoverMap.getCanvas().style.cursor = '';
-          routeCursor = false;
+          hoverMap.getCanvas().style.cursor = '';
           if (loaded) syncRouteHover(hoverMap);
         };
         clearMapHover.current = clearHover;
-        // One handler for everything hoverable that is not a peak, so the priority is explicit: a route wins
-        // over a trail (trail hover is added below the route check and runs only when no route is under the pointer).
+        // The one place that decides the cursor and the hover state: a peak or a route under the pointer gives
+        // `pointer`, anything else clears it. A route wins over a trail (trail hover goes after the route check
+        // and runs only when no route is under the pointer).
+        const mapPreferences = () => [latest.current.selectedRouteId, mapHoveredRoute.current, latest.current.hoveredRouteId];
         map.on('mousemove', (event: MapMouseEvent) => {
-          if (!loaded) return;
-          const id = routeIdAt(hoverMap, event);
-          const route = id === null ? undefined : latest.current.routes?.find((r) => r.id === id);
+          if (!loaded || hoverMap.isMoving()) return;
+          const { peak, routeId } = targetAt(hoverMap, event, mapPreferences());
+          const route = routeId === null ? undefined : latest.current.routes?.find((r) => r.id === routeId);
           if (!route) {
             clearHover();
+            if (peak) hoverMap.getCanvas().style.cursor = 'pointer';
             return;
           }
           mapHoveredRoute.current = route.id;
           hoverMap.getCanvas().style.cursor = 'pointer';
-          routeCursor = true;
           syncRouteHover(hoverMap);
-          tooltip?.setLngLat(event.lngLat).setText(routeTooltip(route)).addTo(hoverMap);
+          tooltip?.setLngLat(event.lngLat).setText(routeTooltip(route));
+          if (tooltip && !tooltip.isOpen()) tooltip.addTo(hoverMap);
         });
         map.on('mouseout', clearHover);
         // The camera moved (a click framed the route, a drag started): the route is no longer under the pointer.
         map.on('movestart', clearHover);
         map.on('click', (event: MapMouseEvent) => {
           if (!loaded) return;
-          const id = routeIdAt(hoverMap, event);
-          if (id !== null) latest.current.onRouteSelect(id);
+          const { routeId } = targetAt(hoverMap, event, mapPreferences());
+          if (routeId !== null) latest.current.onRouteSelect(routeId);
         });
         map.on('load', () => {
           if (!map) return;
