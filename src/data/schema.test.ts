@@ -108,13 +108,23 @@ describe('PeakDetailSchema', () => {
     expect(() => PeakDetailSchema.parse(empty)).toThrow();
   });
 
-  it('accepts a relation without name or colour but rejects a non-integer id', () => {
+  it('accepts a relation without a name', () => {
     const ok = clone(specPeakDetail);
-    first(ok.trails.features).properties.relations = [{ id: 7 } as never];
-    expect(PeakDetailSchema.parse(ok).trails.features[0]!.properties.relations).toEqual([{ id: 7 }]);
+    first(ok.trails.features).properties.relations = [{ id: 7, color: 'red' } as never];
+    expect(PeakDetailSchema.parse(ok).trails.features[0]!.properties.relations).toEqual([
+      { id: 7, color: 'red' },
+    ]);
+  });
 
+  it('rejects a relation without a colour', () => {
     const bad = clone(specPeakDetail);
-    first(bad.trails.features).properties.relations = [{ id: 1.5 } as never];
+    first(bad.trails.features).properties.relations = [{ id: 7, name: 'Szlak' } as never];
+    expect(() => PeakDetailSchema.parse(bad)).toThrow();
+  });
+
+  it('rejects a relation with a non-integer id', () => {
+    const bad = clone(specPeakDetail);
+    first(bad.trails.features).properties.relations = [{ id: 1.5, color: 'red' } as never];
     expect(() => PeakDetailSchema.parse(bad)).toThrow();
   });
 
@@ -191,7 +201,7 @@ describe('PeakDetailSchema', () => {
 
   it('allows a trail feature without a name', () => {
     const ok = clone(specPeakDetail);
-    first(ok.trails.features).properties = { colors: ['red'], relations: [{ id: 1 }] } as never;
+    first(ok.trails.features).properties = { colors: ['red'], relations: [{ id: 1, color: 'red' }] } as never;
     expect(() => PeakDetailSchema.parse(ok)).not.toThrow();
   });
 });

@@ -38,7 +38,7 @@ const PositionWithElevationSchema = z.tuple([longitude, latitude, z.number()]);
 export const TrailRelationSchema = z.object({
   id: z.int(),
   name: z.string().optional(),
-  color: PttkColorSchema.optional(),
+  color: PttkColorSchema,
 });
 export type TrailRelation = z.infer<typeof TrailRelationSchema>;
 
