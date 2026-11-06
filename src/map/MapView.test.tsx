@@ -2,7 +2,7 @@ import { act, render, waitFor } from '@testing-library/react';
 import type { StyleSpecification } from 'maplibre-gl';
 import type { MountainArea, PeakDetail, PeakSummary, Route } from '../data/schema';
 import areaFixture from '../test/fixtures/mountain-area.json';
-import { coverBounds, minZoomForBounds, padBounds } from './camera';
+import { constrainCenter, maxPitchForZoom, minZoomForBounds, padBounds } from './camera';
 import { MapView } from './MapView';
 import { OVERLAY_SOURCE_IDS } from './overlay';
 
@@ -117,7 +117,8 @@ const h = vi.hoisted(() => {
     getContainer() {
       return this.size;
     }
-    setMaxBounds = vi.fn();
+    /** Takes the constrain function (`null` clears it). */
+    setTransformConstrain = vi.fn();
     minZoom = 0;
     setMinZoom = vi.fn((zoom: number) => {
       this.minZoom = zoom;
@@ -125,22 +126,35 @@ const h = vi.hoisted(() => {
     getMinZoom() {
       return this.minZoom;
     }
-    setMaxPitch = vi.fn();
+    getMaxZoom() {
+      return 22;
+    }
+    /** Like MapLibre, a camera move is clamped to the max pitch and lowering the max pitch lowers the camera. */
+    maxPitch = 80;
+    setMaxPitch = vi.fn((pitch: number) => {
+      this.maxPitch = pitch;
+      this.pitch = Math.min(this.pitch, pitch);
+    });
+    getMaxPitch() {
+      return this.maxPitch;
+    }
     /** Corners land outside the 800x600 viewport until zoomed out below 4.5. */
     project() {
       return { x: this.zoom > 4.5 ? 900 : 100, y: 100 };
     }
+    /** Like MapLibre, `resize()` fires a `resize` event. */
     resize = vi.fn(() => {
       this.calls.push('resize');
+      this.emit('resize');
     });
     fitBounds = vi.fn((_bounds: unknown, options?: { pitch?: number }) => {
       this.calls.push('fitBounds');
-      if (options?.pitch !== undefined) this.pitch = options.pitch;
+      if (options?.pitch !== undefined) this.pitch = Math.min(options.pitch, this.maxPitch);
     });
     jumpTo = vi.fn((camera: { zoom: number; pitch: number }) => {
       this.calls.push('jumpTo');
       this.zoom = camera.zoom;
-      this.pitch = camera.pitch;
+      this.pitch = Math.min(camera.pitch, this.maxPitch);
     });
     easeTo = vi.fn(() => {
       this.calls.push('easeTo');
@@ -196,6 +210,12 @@ const h = vi.hoisted(() => {
 
 vi.mock('maplibre-gl', () => ({
   Map: h.FakeMap,
+  LngLat: class {
+    constructor(
+      public lng: number,
+      public lat: number,
+    ) {}
+  },
   NavigationControl: class {},
   Popup: h.FakePopup,
   addProtocol: h.addProtocol,
@@ -220,8 +240,12 @@ const STYLE: StyleSpecification = {
 };
 
 const area = areaFixture as MountainArea;
-/** The camera limits: the area plus a little slack, grown to the shape of the window so that it can show all of it. */
-const limits = (bounds: MountainArea['bounds'], width: number, height: number) => coverBounds(padBounds(bounds, 0.08), width, height);
+/** The camera limits: the area plus 8% slack on every side. */
+const limits = (bounds: MountainArea['bounds']) => padBounds(bounds, 0.08);
+type Constrain = (lngLat: { lng: number; lat: number }, zoom: number) => { center: { lng: number; lat: number }; zoom: number };
+/** The constrain function the map was given last. */
+const constrainOf = (map: { setTransformConstrain: { mock: { calls: unknown[][] } } }) => map.setTransformConstrain.mock.calls.at(-1)![0] as Constrain;
+const gdansk = { lng: 18.65, lat: 54.35 };
 
 const peaks: PeakSummary[] = [
   { id: 'babia-gora', name: 'Babia Góra', range: 'Beskid Żywiecki', elevation: 1725, lat: 49.5732, lon: 19.5294, routeCount: 1 },
@@ -326,6 +350,12 @@ describe('MapView', () => {
     expect(style.terrain).toEqual({ source: 'dem', exaggeration: 1.8 });
     expect(style.layers.some((l) => l.id === 'hillshade')).toBe(true);
     expect(map.options.pitch).toBe(0);
+    expect(map.options.locale).toMatchObject({
+      'Popup.Close': 'Zamknij',
+      'NavigationControl.ZoomIn': 'Przybliż',
+      'NavigationControl.ZoomOut': 'Oddal',
+      'NavigationControl.ResetBearing': expect.stringMatching(/północ/),
+    });
     expect(h.setupMaplibre).toHaveBeenCalledOnce();
     expect(h.setWorkerUrl).toHaveBeenCalledWith(expect.stringContaining('maplibre-gl-worker'));
 
@@ -385,61 +415,84 @@ describe('MapView', () => {
     expect(ids.indexOf('mountain-mask-outline')).toBeLessThan(ids.indexOf('trails'));
   });
 
-  it('keeps the camera inside the area: maxBounds from the file and a minZoom that fits the container', async () => {
+  it('keeps the camera inside the area: a constrain function on the padded bounds and a minZoom that fits the container', async () => {
     const { map } = await renderLoaded(baseProps());
-    expect(map.setMaxBounds).toHaveBeenLastCalledWith(limits(area.bounds, 800, 600));
-    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(limits(area.bounds, 800, 600), 800, 600));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(limits(area.bounds), 800, 600));
+    const constrain = constrainOf(map);
+    expect(constrain).toEqual(expect.any(Function));
+    // Panning: the centre is kept so that the 800x600 view stays inside the padded bounds.
+    const { center, zoom } = constrain(gdansk, 10);
+    expect(zoom).toBe(10);
+    const expected = constrainCenter(gdansk, 10, 800, 600, limits(area.bounds));
+    expect(center.lng).toBeCloseTo(expected.lng, 9);
+    expect(center.lat).toBeCloseTo(expected.lat, 9);
+    expect(center.lat).toBeLessThan(gdansk.lat);
   });
 
-  it('recomputes minZoom when the container is resized', async () => {
+  it('clamps the zoom to the minimum and maximum zoom in the constrain function', async () => {
     const { map } = await renderLoaded(baseProps());
-    const wide = minZoomForBounds(limits(area.bounds, 800, 600), 800, 600);
+    const constrain = constrainOf(map);
+    expect(constrain(gdansk, 1).zoom).toBe(map.getMinZoom());
+    expect(constrain(gdansk, 30).zoom).toBe(22);
+  });
+
+  it('does not use maxBounds (it zooms in to fill the window, so the limits had to be stretched to its shape)', async () => {
+    const { map } = await renderLoaded(baseProps());
+    // The fake has no `setMaxBounds`: calling it would throw. The constructor gets no bounds either.
+    expect(map.options).not.toHaveProperty('maxBounds');
+  });
+
+  it('recomputes minZoom when the container is resized and constrains to the new size', async () => {
+    const { map } = await renderLoaded(baseProps());
+    const wide = minZoomForBounds(limits(area.bounds), 800, 600);
 
     map.size = { clientWidth: 360, clientHeight: 640 };
     act(() => map.emit('resize'));
-    const narrow = minZoomForBounds(limits(area.bounds, 360, 640), 360, 640);
+    const narrow = minZoomForBounds(limits(area.bounds), 360, 640);
     expect(narrow).toBeLessThan(wide);
     expect(map.setMinZoom).toHaveBeenLastCalledWith(narrow);
+    const expected = constrainCenter(gdansk, 10, 360, 640, limits(area.bounds));
+    expect(constrainOf(map)(gdansk, 10).center.lat).toBeCloseTo(expected.lat, 9);
 
     map.size = { clientWidth: 1280, clientHeight: 800 };
     act(() => map.emit('resize'));
-    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(limits(area.bounds, 1280, 800), 1280, 800));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(limits(area.bounds), 1280, 800));
   });
 
-  it('pads the area by 8% of its span, then grows the limits to the shape of the window', async () => {
+  it('on a phone, the whole padded area fits at minZoom and the camera is pinned to its middle there', async () => {
     const { map } = await renderLoaded(baseProps());
-    const [west, south, east, north] = map.setMaxBounds.mock.calls[0]![0] as number[];
-    // The fixture is wider than the 800x600 window, so only north and south grow beyond the padding.
-    expect(west).toBeCloseTo(15 - 0.08 * 5.9, 9);
-    expect(east).toBeCloseTo(20.9 + 0.08 * 5.9, 9);
-    expect(south).toBeLessThan(48.6 - 0.08 * 2.7);
-    expect(north).toBeGreaterThan(51.3 + 0.08 * 2.7);
-  });
-
-  it('recomputes the limits for the new window shape on resize', async () => {
-    const { map } = await renderLoaded(baseProps());
-    map.size = { clientWidth: 360, clientHeight: 640 };
+    map.size = { clientWidth: 360, clientHeight: 560 };
     act(() => map.emit('resize'));
-    expect(map.setMaxBounds).toHaveBeenLastCalledWith(limits(area.bounds, 360, 640));
+    const constrain = constrainOf(map);
+    const fromNorth = constrain(gdansk, map.getMinZoom());
+    const fromSouth = constrain({ lng: 20.46, lat: 44.8 }, map.getMinZoom());
+    expect(fromNorth.center.lat).toBeCloseTo(fromSouth.center.lat, 9);
+    const [, south, , north] = limits(area.bounds);
+    expect(fromNorth.center.lat).toBeGreaterThan(south);
+    expect(fromNorth.center.lat).toBeLessThan(north);
   });
 
-  it('opens on a flat overview and keeps the pitch low near the minimum zoom', async () => {
+  it('opens on a flat overview and ramps the pitch limit up with the zoom', async () => {
     const { map } = await renderLoaded(baseProps());
     expect(map.fitBounds).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ pitch: 0 }));
-    expect(map.setMaxPitch).toHaveBeenLastCalledWith(15);
+    expect(map.setMaxPitch).toHaveBeenLastCalledWith(maxPitchForZoom(map.zoom, map.getMinZoom()));
 
-    // Zooming in far enough frees the pitch up to the normal maximum, zooming out clamps it again.
-    map.zoom = map.getMinZoom() + 2;
-    act(() => map.emit('zoom'));
+    // The user zooms: the limit follows the ramp, 15 degrees at minZoom to 80 three levels above.
+    const userZoom = (zoom: number) => {
+      map.zoom = zoom;
+      act(() => map.emit('zoom', { originalEvent: {} }));
+    };
+    userZoom(map.getMinZoom() + 1.5);
+    expect(map.setMaxPitch).toHaveBeenLastCalledWith(47.5);
+    userZoom(map.getMinZoom() + 3);
     expect(map.setMaxPitch).toHaveBeenLastCalledWith(80);
-    map.zoom = map.getMinZoom() + 0.5;
-    act(() => map.emit('zoom'));
+    userZoom(map.getMinZoom());
     expect(map.setMaxPitch).toHaveBeenLastCalledWith(15);
   });
 
   it('does not limit the pitch without an area', async () => {
     const { map } = await renderLoaded(baseProps({ area: null }));
-    act(() => map.emit('zoom'));
+    act(() => map.emit('zoom', { originalEvent: {} }));
     expect(map.setMaxPitch).not.toHaveBeenCalled();
   });
 
@@ -451,12 +504,18 @@ describe('MapView', () => {
     expect(map.handlers.some((hd) => hd.type === 'resize' || hd.type === 'zoom')).toBe(false);
   });
 
+  it('drops the constrain function when the area goes away', async () => {
+    const { map, rerender } = await renderLoaded(baseProps());
+    rerender(<MapView {...baseProps({ area: null })} />);
+    expect(map.setTransformConstrain).toHaveBeenLastCalledWith(null);
+  });
+
   it('does not restrict the camera without an area (the file could not be loaded)', async () => {
     const { map } = await renderLoaded(baseProps({ area: null }));
     act(() => map.emit('resize'));
-    expect(map.setMaxBounds).not.toHaveBeenCalled();
+    expect(map.setTransformConstrain).not.toHaveBeenCalled();
     expect(map.setMinZoom).not.toHaveBeenCalled();
-    expect(map.options).not.toHaveProperty('maxBounds');
+    expect(map.options).not.toHaveProperty('transformConstrain');
   });
 
   it('applies the area when it arrives after the map has loaded', async () => {
@@ -464,7 +523,8 @@ describe('MapView', () => {
     expect(map.data['mountain-mask']).toBeUndefined();
 
     rerender(<MapView {...baseProps()} />);
-    expect(map.setMaxBounds).toHaveBeenLastCalledWith(limits(area.bounds, 800, 600));
+    expect(constrainOf(map)).toEqual(expect.any(Function));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(limits(area.bounds), 800, 600));
     expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(3);
   });
 
@@ -485,11 +545,11 @@ describe('MapView', () => {
   it('recomputes the mask only when the area changes', async () => {
     const { map, rerender } = await renderLoaded(baseProps());
     const first = map.data['mountain-mask'];
-    expect(map.setMaxBounds).toHaveBeenCalledTimes(1);
+    expect(map.setTransformConstrain).toHaveBeenCalledTimes(1);
 
     rerender(<MapView {...baseProps({ progress: { peaks: { rysy: { status: 'planned' } } }, peaks: [...peaks] })} />);
     expect(map.data['mountain-mask']).toBe(first);
-    expect(map.setMaxBounds).toHaveBeenCalledTimes(1);
+    expect(map.setTransformConstrain).toHaveBeenCalledTimes(1);
 
     const other: MountainArea = {
       areas: { type: 'MultiPolygon', coordinates: [[[[19, 49], [20, 49], [20, 50], [19, 50], [19, 49]]]] },
@@ -498,7 +558,9 @@ describe('MapView', () => {
     rerender(<MapView {...baseProps({ area: other })} />);
     expect(map.data['mountain-mask']).not.toBe(first);
     expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(2);
-    expect(map.setMaxBounds).toHaveBeenLastCalledWith(limits(other.bounds, 800, 600));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(limits(other.bounds), 800, 600));
+    const expected = constrainCenter(gdansk, 10, 800, 600, limits(other.bounds));
+    expect(constrainOf(map)(gdansk, 10).center.lat).toBeCloseTo(expected.lat, 9);
     // Applying again must not nest the within filter.
     const cityFilter = map.filters['label_city'] as unknown[];
     expect(cityFilter).toHaveLength(3);
@@ -523,6 +585,9 @@ describe('MapView', () => {
     rerender(<MapView {...baseProps({ detail })} />);
 
     expect(map.flyTo).toHaveBeenCalledWith({ center: [19.5294, 49.5732], zoom: 12.5, pitch: 65, duration: 3000 });
+    // Not capped by the low-zoom pitch limit: the limit is lifted to 80 right before the flight.
+    expect(map.setMaxPitch).toHaveBeenLastCalledWith(80);
+    expect(map.setMaxPitch.mock.invocationCallOrder.at(-1)).toBeLessThan(map.flyTo.mock.invocationCallOrder.at(-1)!);
     const trails = map.data['trails'] as { features: unknown[] };
     expect(trails.features).toHaveLength(2);
   });
@@ -548,6 +613,25 @@ describe('MapView', () => {
     expect(target[0].pitch).toBe(48);
     expect(target[0].zoom).toBeLessThanOrEqual(4.5);
     expect(target[0].duration).toBeGreaterThan(0);
+  });
+
+  it('frames a route selected from the overview (minimum zoom) tilted at pitch 48, not at the low-zoom limit', async () => {
+    const { map, rerender } = await renderLoaded(baseProps({ detail }));
+    // Back at the overview: the pitch limit is at its lowest.
+    map.zoom = map.getMinZoom();
+    act(() => map.emit('zoom', { originalEvent: {} }));
+    expect(map.maxPitch).toBe(15);
+
+    rerender(<MapView {...baseProps({ detail, selectedRouteId: route.id })} />);
+    const target = map.easeTo.mock.calls.at(-1) as unknown as [{ pitch: number }];
+    expect(target[0].pitch).toBe(48);
+    expect(map.maxPitch).toBe(80);
+    // Programmatic zoom events during the animation do not bring the limit back down.
+    act(() => map.emit('zoom'));
+    expect(map.maxPitch).toBe(80);
+    // The user zooming does.
+    act(() => map.emit('zoom', { originalEvent: {} }));
+    expect(map.maxPitch).toBe(maxPitchForZoom(map.zoom, map.getMinZoom()));
   });
 
   it('dims trails while a route is selected', async () => {
@@ -592,7 +676,7 @@ describe('MapView', () => {
       expect(map.canvas.style['cursor']).toBe('pointer');
       expect(popups().filter((p) => p.isOpen())).toHaveLength(1);
       const popup = popups()[0]!;
-      expect(popup.options).toMatchObject({ closeButton: false, closeOnClick: false });
+      expect(popup.options).toEqual({ closeButton: false, closeOnClick: false, className: 'route-tooltip', offset: 12, maxWidth: '320px' });
       expect(popup.text).toBe('Z Korbielowa · 9,3 km na szczyt · ok. 3 h 35 min');
       expect(popup.lngLat).toEqual(lngLat);
       expect(popup.isOpen()).toBe(true);

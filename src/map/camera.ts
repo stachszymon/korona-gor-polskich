@@ -118,49 +118,22 @@ export function padBounds(
   return [Math.max(west - dLon, -180), Math.max(south - dLat, -85), Math.min(east + dLon, 180), Math.min(north + dLat, 85)];
 }
 
-/**
- * `bounds` grown, evenly on both sides, in the one dimension where a `widthPx` x `heightPx` window is relatively
- * larger, so that the bounds have the window's shape. MapLibre never shows anything outside `maxBounds`: for
- * bounds of a different shape it zooms in until the window is filled, which crops the long side. With bounds
- * of the window's shape, `minZoomForBounds` shows the whole of the original bounds. Limited to the Web Mercator
- * world; a degenerate window leaves the bounds unchanged.
- */
-export function coverBounds(
-  bounds: readonly [number, number, number, number],
-  widthPx: number,
-  heightPx: number,
-): [number, number, number, number] {
-  const [west, south, east, north] = bounds;
-  if (!(widthPx > 0 && heightPx > 0)) return [west, south, east, north];
-  const dx = (east - west) / 360;
-  const yTop = mercatorY(north);
-  const yBottom = mercatorY(south);
-  const dy = yBottom - yTop;
-  const wantedDy = (heightPx * dx) / widthPx;
-  if (wantedDy > dy) {
-    const grow = (wantedDy - dy) / 2;
-    const clampLat = (lat: number) => Math.min(Math.max(lat, -85), 85);
-    return [west, clampLat(latitudeOf(yBottom + grow)), east, clampLat(latitudeOf(yTop - grow))];
-  }
-  const wantedDx = (widthPx * dy) / heightPx;
-  const growDeg = ((wantedDx - dx) / 2) * 360;
-  return [Math.max(west - growDeg, -180), south, Math.min(east + growDeg, 180), north];
-}
-
 /** Highest pitch the map allows (also the `maxPitch` the map is created with). */
 export const MAX_PITCH = 80;
-/** Pitch limit while zoomed out close to the minimum zoom. */
+/** Pitch limit at the minimum zoom. */
 const OVERVIEW_MAX_PITCH = 15;
-/** The overview pitch limit holds below `minZoom` plus this many zoom levels. */
-const OVERVIEW_ZOOM_RANGE = 1.5;
+/** Zoom levels above `minZoom` over which the pitch limit rises from `OVERVIEW_MAX_PITCH` to `MAX_PITCH`. */
+const PITCH_RAMP_ZOOMS = 3;
 
 /**
- * The highest pitch allowed at `zoom`. A tilted camera sees a wide trapezoid, and MapLibre keeps all of it
- * inside `maxBounds`, so a tilted overview of a wide area cannot show its corners. Close to `minZoom` the
- * camera is therefore kept almost top-down; zooming in beyond `minZoom + 1.5` frees the full pitch.
+ * The highest pitch allowed at `zoom`: 15 degrees at `minZoom`, rising linearly to the full 80 degrees at
+ * `minZoom + 3`. The overview of the whole area stays almost top-down (a tilted view of it would put the
+ * horizon and the dimmed lowland in view), and the limit changes gradually, so zooming out lowers a tilted
+ * camera smoothly instead of snapping it flat.
  */
 export function maxPitchForZoom(zoom: number, minZoom: number): number {
-  return zoom < minZoom + OVERVIEW_ZOOM_RANGE ? OVERVIEW_MAX_PITCH : MAX_PITCH;
+  const share = Math.min(Math.max((zoom - minZoom) / PITCH_RAMP_ZOOMS, 0), 1);
+  return OVERVIEW_MAX_PITCH + share * (MAX_PITCH - OVERVIEW_MAX_PITCH);
 }
 
 /** Side of a Web Mercator tile in pixels (MapLibre's world is `512 * 2^zoom` px wide). */
@@ -178,11 +151,47 @@ function latitudeOf(y: number): number {
 }
 
 /**
+ * One axis of `constrainCenter`, in world pixels: keeps a view of `span` pixels centred at `center` inside
+ * `[min, max]` when it fits, otherwise centres it on `[min, max]`.
+ */
+function clampAxis(center: number, span: number, min: number, max: number): number {
+  if (max - min <= span) return (min + max) / 2;
+  return Math.min(Math.max(center, min + span / 2), max - span / 2);
+}
+
+/**
+ * The centre for a top-down `widthPx` x `heightPx` view at `zoom` that respects `bounds`
+ * (`[west, south, east, north]`), each axis on its own in Web Mercator: where the view is smaller than the
+ * bounds it stays inside them, where it is larger it is centred on them. Unlike MapLibre's `maxBounds`, this
+ * never zooms in to fill the window, so at `minZoomForBounds` a window of any shape shows the whole of the
+ * bounds, and zoomed in, panning stops at their edges.
+ */
+export function constrainCenter(
+  center: { lng: number; lat: number },
+  zoom: number,
+  widthPx: number,
+  heightPx: number,
+  [west, south, east, north]: readonly [number, number, number, number],
+): { lng: number; lat: number } {
+  const world = TILE_SIZE * 2 ** zoom;
+  const x = ((center.lng + 180) / 360) * world;
+  const y = mercatorY(center.lat) * world;
+  const newX = clampAxis(x, widthPx, ((west + 180) / 360) * world, ((east + 180) / 360) * world);
+  const newY = clampAxis(y, heightPx, mercatorY(north) * world, mercatorY(south) * world);
+  // An axis that needs no change keeps its exact input, so repeated constraining does not drift the camera.
+  return {
+    lng: newX === x ? center.lng : (newX / world) * 360 - 180,
+    lat: newY === y ? center.lat : latitudeOf(newY / world),
+  };
+}
+
+/**
  * The zoom at which `bounds` (`[west, south, east, north]`) just fits a `widthPx` x `heightPx` window,
  * top-down in Web Mercator with 512 px tiles. Used as the map's `minZoom`: zooming out further would
  * show more than the bounds. Never below 0.
  * Top-down only: a pitched camera sees the near rows magnified (about 1.4x at the bottom edge at pitch 50),
- * so a pitched view at this zoom clips the near corners. Pass bounds with slack (see `padBounds`); MapLibre's own `maxBounds` constraint is pitch-aware too.
+ * so a pitched view at this zoom clips the near corners. Pass bounds with slack (see `padBounds`). The camera
+ * constraint (`constrainCenter`, like MapLibre's default one) is top-down as well and ignores the pitch.
  */
 export function minZoomForBounds(
   [west, south, east, north]: readonly [number, number, number, number],

@@ -1,4 +1,14 @@
-import { fitAdjustment, fitsInViewport, frameRoute, coverBounds, maxPitchForZoom, minZoomForBounds, padBounds, projectedBox, type FramingMap } from './camera';
+import {
+  constrainCenter,
+  fitAdjustment,
+  fitsInViewport,
+  frameRoute,
+  maxPitchForZoom,
+  minZoomForBounds,
+  padBounds,
+  projectedBox,
+  type FramingMap,
+} from './camera';
 
 const viewport = { width: 800, height: 600 };
 
@@ -257,75 +267,121 @@ describe('padBounds', () => {
 });
 
 describe('maxPitchForZoom', () => {
-  it('flattens the camera to 15 degrees near the minimum zoom', () => {
+  it('keeps the camera at 15 degrees at and below the minimum zoom', () => {
     expect(maxPitchForZoom(6, 6)).toBe(15);
-    expect(maxPitchForZoom(6.4, 6)).toBe(15);
-    expect(maxPitchForZoom(7.49, 6)).toBe(15);
+    expect(maxPitchForZoom(5, 6)).toBe(15);
   });
 
-  it('frees the pitch 1.5 zoom levels above the minimum', () => {
-    expect(maxPitchForZoom(7.5, 6)).toBe(80);
+  it('rises linearly to 80 degrees over the three zoom levels above the minimum', () => {
+    expect(maxPitchForZoom(7, 6)).toBeCloseTo(15 + 65 / 3, 9);
+    expect(maxPitchForZoom(7.5, 6)).toBeCloseTo(47.5, 9);
+    expect(maxPitchForZoom(8, 6)).toBeCloseTo(15 + (2 * 65) / 3, 9);
+    expect(maxPitchForZoom(9, 6)).toBe(80);
+  });
+
+  it('allows the full 80 degrees above the ramp', () => {
     expect(maxPitchForZoom(12.5, 6)).toBe(80);
   });
 
+  it('is continuous: a small zoom step never changes the limit by more than a few degrees', () => {
+    for (let zoom = 5; zoom < 10; zoom += 0.01) {
+      expect(Math.abs(maxPitchForZoom(zoom + 0.01, 6) - maxPitchForZoom(zoom, 6))).toBeLessThan(0.25);
+    }
+  });
+
   it('follows the minimum zoom, not absolute zoom levels', () => {
-    expect(maxPitchForZoom(8, 7)).toBe(15);
-    expect(maxPitchForZoom(8.5, 7)).toBe(80);
+    expect(maxPitchForZoom(7, 7)).toBe(15);
+    expect(maxPitchForZoom(8.5, 7)).toBeCloseTo(47.5, 9);
   });
 });
 
-describe('coverBounds', () => {
+describe('constrainCenter', () => {
   type Bounds = [number, number, number, number];
+  const mercX = (lng: number) => (lng + 180) / 360;
   const mercY = (lat: number) => {
     const rad = (lat * Math.PI) / 180;
     return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
   };
-  const size = ([west, south, east, north]: Bounds) => ({ dx: (east - west) / 360, dy: mercY(south) - mercY(north) });
-  const wide: Bounds = [15, 48.6, 23.2, 51.4];
+  /** The real mountain area (public/data/mountain-area.json) with the map's 8% slack. */
+  const padded = padBounds([14.9073, 48.6401, 23.2319, 51.3518], 0.08) as Bounds;
+  const places = {
+    gdansk: { lng: 18.65, lat: 54.35 },
+    belgrade: { lng: 20.46, lat: 44.8 },
+    warsaw: { lng: 21.01, lat: 52.23 },
+    berlin: { lng: 13.4, lat: 52.52 },
+    kyiv: { lng: 30.52, lat: 50.45 },
+    rysy: { lng: 20.088, lat: 49.1795 },
+    sniezka: { lng: 15.7398, lat: 50.7360 },
+    tarnica: { lng: 22.7254, lat: 49.0747 },
+  };
 
-  it('keeps the bounds when the window has the same shape', () => {
-    const { dx, dy } = size(wide);
-    const covered = coverBounds(wide, 1000 * dx, 1000 * dy);
-    for (let i = 0; i < 4; i++) expect(covered[i]).toBeCloseTo(wide[i]!, 6);
-  });
+  /** The top-down view in world pixels at `zoom`, and the bounds in the same pixels. */
+  function view(center: { lng: number; lat: number }, zoom: number, width: number, height: number, [west, south, east, north]: Bounds) {
+    const world = 512 * 2 ** zoom;
+    const cx = mercX(center.lng) * world;
+    const cy = mercY(center.lat) * world;
+    return {
+      view: { minX: cx - width / 2, maxX: cx + width / 2, minY: cy - height / 2, maxY: cy + height / 2 },
+      bounds: { minX: mercX(west) * world, maxX: mercX(east) * world, minY: mercY(north) * world, maxY: mercY(south) * world },
+    };
+  }
 
-  it('grows the bounds north and south, evenly, when the window is taller than they are wide', () => {
-    const covered = coverBounds(wide, 920, 718);
-    expect(covered[0]).toBe(wide[0]);
-    expect(covered[2]).toBe(wide[2]);
-    expect(covered[1]).toBeLessThan(wide[1]);
-    expect(covered[3]).toBeGreaterThan(wide[3]);
-    const { dx, dy } = size(covered);
-    expect(dx / dy).toBeCloseTo(920 / 718, 6);
-    // Evenly in Mercator space: the centre does not move.
-    expect((mercY(covered[1]) + mercY(covered[3])) / 2).toBeCloseTo((mercY(wide[1]) + mercY(wide[3])) / 2, 9);
-  });
-
-  it('grows the bounds east and west when the window is wider than they are', () => {
-    const covered = coverBounds(wide, 3000, 300);
-    expect(covered[1]).toBeCloseTo(wide[1], 9);
-    expect(covered[3]).toBeCloseTo(wide[3], 9);
-    expect(covered[0]).toBeLessThan(wide[0]);
-    expect(covered[2]).toBeGreaterThan(wide[2]);
-    const { dx, dy } = size(covered);
-    expect(dx / dy).toBeCloseTo(3000 / 300, 6);
-  });
-
-  it('lets minZoomForBounds fit both dimensions at once, so the window is exactly filled', () => {
-    for (const [w, h] of [
-      [920, 718],
-      [360, 640],
-      [1560, 998],
-    ] as const) {
-      const covered = coverBounds(wide, w, h);
-      const zoom = minZoomForBounds(covered, w, h);
-      const { dx, dy } = size(covered);
-      expect(dx * 512 * 2 ** zoom).toBeCloseTo(w, 3);
-      expect(dy * 512 * 2 ** zoom).toBeCloseTo(h, 3);
+  for (const [width, height] of [
+    [360, 560],
+    [1280, 800],
+  ] as const) {
+    const minZoom = minZoomForBounds(padded, width, height);
+    for (const zoom of [minZoom, 10]) {
+      it(`at ${width}x${height}, zoom ${zoom.toFixed(2)}: the view never leaves the padded bounds on an axis where they are larger, and is centred where they are smaller`, () => {
+        for (const start of Object.values(places)) {
+          const center = constrainCenter(start, zoom, width, height, padded);
+          const { view: v, bounds: b } = view(center, zoom, width, height, padded);
+          if (b.maxX - b.minX >= width) {
+            expect(v.minX).toBeGreaterThanOrEqual(b.minX - 1e-6);
+            expect(v.maxX).toBeLessThanOrEqual(b.maxX + 1e-6);
+          } else {
+            expect((v.minX + v.maxX) / 2).toBeCloseTo((b.minX + b.maxX) / 2, 6);
+          }
+          if (b.maxY - b.minY >= height) {
+            expect(v.minY).toBeGreaterThanOrEqual(b.minY - 1e-6);
+            expect(v.maxY).toBeLessThanOrEqual(b.maxY + 1e-6);
+          } else {
+            expect((v.minY + v.maxY) / 2).toBeCloseTo((b.minY + b.maxY) / 2, 6);
+          }
+        }
+      });
     }
+  }
+
+  it('on a 360x560 phone at zoom 10 the centre cannot go north of the padded north edge minus half a view', () => {
+    const center = constrainCenter(places.gdansk, 10, 360, 560, padded);
+    const { view: v, bounds: b } = view(center, 10, 360, 560, padded);
+    expect(v.minY).toBeCloseTo(b.minY, 6);
+    expect(center.lat).toBeLessThan(padded[3]);
+    // East-west is untouched for a point that is already inside.
+    expect(center.lng).toBeCloseTo(places.gdansk.lng, 9);
   });
 
-  it('returns the bounds unchanged for a degenerate window', () => {
-    expect(coverBounds(wide, 0, 0)).toEqual(wide);
+  it('on a 360x560 phone at the minimum zoom the whole padded area is in view and the camera is pinned to its middle', () => {
+    const minZoom = minZoomForBounds(padded, 360, 560);
+    const fromNorth = constrainCenter(places.gdansk, minZoom, 360, 560, padded);
+    const fromSouth = constrainCenter(places.belgrade, minZoom, 360, 560, padded);
+    expect(fromNorth.lat).toBeCloseTo(fromSouth.lat, 9);
+    expect(fromNorth.lng).toBeCloseTo(fromSouth.lng, 9);
+    const { view: v, bounds: b } = view(fromNorth, minZoom, 360, 560, padded);
+    expect(v.minX).toBeLessThanOrEqual(b.minX + 1e-6);
+    expect(v.maxX).toBeGreaterThanOrEqual(b.maxX - 1e-6);
+    expect(v.minY).toBeLessThanOrEqual(b.minY + 1e-6);
+    expect(v.maxY).toBeGreaterThanOrEqual(b.maxY - 1e-6);
+  });
+
+  it('leaves a centre that keeps the view inside the bounds as it is', () => {
+    expect(constrainCenter(places.rysy, 10, 1280, 800, padded)).toEqual(places.rysy);
+  });
+
+  it('does not mutate its input', () => {
+    const start = { ...places.gdansk };
+    constrainCenter(start, 10, 360, 560, padded);
+    expect(start).toEqual(places.gdansk);
   });
 });

@@ -5,7 +5,7 @@ import type { MapLayerMouseEvent, MapMouseEvent, MapTouchEvent, StyleSpecificati
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MountainArea, PeakDetail, PeakSummary, Route } from '../data/schema';
 import { formatDistance, formatDuration } from '../ui/format';
-import { coverBounds, frameRoute, MAX_PITCH, maxPitchForZoom, minZoomForBounds, padBounds } from './camera';
+import { constrainCenter, frameRoute, MAX_PITCH, maxPitchForZoom, minZoomForBounds, padBounds } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { labelRestrictions } from './labels';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
@@ -109,6 +109,16 @@ function targetAt(
 function routeTooltip(route: Route): string {
   return `${route.name} · ${formatDistance(route.distanceKm)} na szczyt · ${formatDuration(route.durationMin)}`;
 }
+
+/** MapLibre's interface strings in Polish (the popup close button and the zoom and compass buttons). */
+const MAP_LOCALE = {
+  'Map.Title': 'Mapa',
+  'Popup.Close': 'Zamknij',
+  'NavigationControl.ZoomIn': 'Przybliż',
+  'NavigationControl.ZoomOut': 'Oddal',
+  'NavigationControl.ResetBearing': 'Przeciągnij, aby obrócić mapę; kliknij, aby przywrócić północ',
+  'AttributionControl.ToggleAttribution': 'Pokaż lub ukryj źródła mapy',
+};
 
 /** Rough view of southern Poland, so the first tiles are not the whole world. */
 const START_CENTER: Position = [19, 50];
@@ -215,6 +225,15 @@ export function MapView({
     map.setFilter('routes-hover', routeHoverFilter(id));
   }, []);
   const tileErrorReported = useRef(false);
+  /**
+   * Set while one of our own camera moves (peak flight, route framing) may tilt the camera beyond the low-zoom
+   * pitch limit; the limit is held at `MAX_PITCH` until the user zooms again.
+   */
+  const pitchFreed = useRef(false);
+  const freePitch = useCallback((map: maplibregl.Map) => {
+    pitchFreed.current = true;
+    if (map.getMaxPitch() !== MAX_PITCH) map.setMaxPitch(MAX_PITCH);
+  }, []);
   const initialViewDone = useRef(false);
 
   useEffect(() => {
@@ -234,7 +253,16 @@ export function MapView({
       try {
         // The bundler inlines maplibre-gl, so its default worker location (next to the module) does not exist.
         maplibregl.setWorkerUrl(workerUrl);
-        map = new maplibregl.Map({ container, style, center: START_CENTER, zoom: START_ZOOM, pitch: 0, maxPitch: MAX_PITCH, canvasContextAttributes: { antialias: true } });
+        map = new maplibregl.Map({
+          container,
+          style,
+          center: START_CENTER,
+          zoom: START_ZOOM,
+          pitch: 0,
+          maxPitch: MAX_PITCH,
+          locale: MAP_LOCALE,
+          canvasContextAttributes: { antialias: true },
+        });
         mapRef.current = map;
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
@@ -247,7 +275,8 @@ export function MapView({
           if (typeof id === 'string') latest.current.onPeakClick(id);
         });
         const hoverMap = map;
-        tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'route-tooltip', offset: 12 });
+        // Route names are long: a wider box than MapLibre's 240 px default, and the text wraps inside it.
+        tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'route-tooltip', offset: 12, maxWidth: '320px' });
         /** Highlights these OSM relations along their whole length (on the casing and the coloured line). */
         const setHighlight = (ids: readonly number[]) => {
           if (!loaded) return;
@@ -371,35 +400,43 @@ export function MapView({
     for (const [id, filter] of Object.entries(filters)) map.setFilter(id, filter);
   }, [ready, area]);
 
-  // The camera stays inside the area: panning stops at its bounds and zooming out stops when they fill the
-  // map container (which changes with the window size and the side panel, hence the `resize` listener).
+  // The camera stays inside the area: panning stops at its padded bounds and zooming out stops when the whole of
+  // them fits the map container (which changes with the window size and the side panel, hence the `resize`
+  // listener). On an axis where the view is larger than the bounds (a phone at the minimum zoom) it is centred.
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !area) return;
     const padded = padBounds(area.bounds, BOUNDS_PADDING);
-    // Close to minZoom the camera stays almost top-down: a tilted view of this wide area would clip its corners.
-    let pitchLimit: number | null = null;
+    map.setTransformConstrain((lngLat, zoom) => {
+      const z = Math.min(Math.max(zoom, map.getMinZoom()), map.getMaxZoom());
+      const { clientWidth, clientHeight } = map.getContainer();
+      const { lng, lat } = constrainCenter(lngLat, z, clientWidth, clientHeight, padded);
+      return { center: new maplibregl.LngLat(lng, lat), zoom: z };
+    });
+    // The pitch limit ramps up with the zoom: almost top-down at the overview, free three levels above it.
     const limitPitch = () => {
+      if (pitchFreed.current) return;
       const limit = maxPitchForZoom(map.getZoom(), map.getMinZoom());
-      if (limit === pitchLimit) return;
-      pitchLimit = limit;
-      map.setMaxPitch(limit);
+      if (limit !== map.getMaxPitch()) map.setMaxPitch(limit);
+    };
+    const onZoom = (event: { originalEvent?: unknown }) => {
+      // The user zoomed (wheel, pinch, buttons, keys): the ramp applies again after one of our own camera moves.
+      if (event.originalEvent) pitchFreed.current = false;
+      limitPitch();
     };
     const fitMinZoom = () => {
       const { clientWidth, clientHeight } = map.getContainer();
-      // MapLibre never shows anything outside the limits, so for a window of another shape it would zoom in and crop
-      // the area. Limits of the window's shape let `minZoom` show the whole area.
-      const limits = coverBounds(padded, clientWidth, clientHeight);
-      map.setMaxBounds(limits);
-      map.setMinZoom(minZoomForBounds(limits, clientWidth, clientHeight));
+      map.setMinZoom(minZoomForBounds(padded, clientWidth, clientHeight));
       limitPitch();
     };
     fitMinZoom();
     map.on('resize', fitMinZoom);
-    map.on('zoom', limitPitch);
+    map.on('zoom', onZoom);
     return () => {
       map.off('resize', fitMinZoom);
-      map.off('zoom', limitPitch);
+      map.off('zoom', onZoom);
+      // Not on unmount: the map is gone by then.
+      if (mapRef.current === map) map.setTransformConstrain(null);
     };
   }, [ready, area]);
 
@@ -440,8 +477,10 @@ export function MapView({
     const map = mapRef.current;
     if (!ready || !map || !detail) return;
     const peak = latest.current.peaks.find((p) => p.id === detail.peakId);
-    if (peak) map.flyTo({ center: [peak.lon, peak.lat], zoom: 12.5, pitch: 65, duration: 3000 });
-  }, [ready, detail]);
+    if (!peak) return;
+    freePitch(map);
+    map.flyTo({ center: [peak.lon, peak.lat], zoom: 12.5, pitch: 65, duration: 3000 });
+  }, [ready, detail, freePitch]);
 
   const route = detail?.routes.find((r) => r.id === selectedRouteId) ?? null;
   useEffect(() => {
@@ -449,8 +488,10 @@ export function MapView({
     if (!ready || !map) return;
     (map.getSource('route') as maplibregl.GeoJSONSource | undefined)?.setData(routeToGeoJSON(route));
     map.setPaintProperty('trails', 'line-opacity', trailsOpacity(route !== null));
-    if (route) frameRoute(map, route.geometry.coordinates, { padding: ROUTE_PADDING, pitch: ROUTE_PITCH, duration: ROUTE_EASE_MS });
-  }, [ready, route]);
+    if (!route) return;
+    freePitch(map);
+    frameRoute(map, route.geometry.coordinates, { padding: ROUTE_PADDING, pitch: ROUTE_PITCH, duration: ROUTE_EASE_MS });
+  }, [ready, route, freePitch]);
 
   const cursorLon = cursor?.[0];
   const cursorLat = cursor?.[1];

@@ -567,7 +567,8 @@ textarea {
   padding: 6px 10px;
   font-size: 0.85rem;
   font-weight: 600;
-  white-space: nowrap;
+  /* Wraps inside the popup's 320 px max width (set in MapView) instead of running out of the box. */
+  overflow-wrap: break-word;
 }
 
 /* Popup of a clicked trail: the relations on that segment, a colour bar and a name each. */
