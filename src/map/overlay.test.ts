@@ -30,7 +30,7 @@ const peak = (over: Partial<PeakSummary> = {}): PeakSummary => ({
 
 const trail = (colors: TrailFeature['properties']['colors']): TrailFeature => ({
   type: 'Feature',
-  properties: { colors },
+  properties: { colors, relations: colors.map((color, i) => ({ id: i + 1, color })) },
   geometry: {
     type: 'LineString',
     coordinates: [

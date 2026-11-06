@@ -9,7 +9,14 @@
           "colors": [
             "red"
           ],
-          "name": "Główny Szlak Beskidzki"
+          "name": "Główny Szlak Beskidzki",
+          "relations": [
+            {
+              "id": 1000,
+              "name": "Główny Szlak Beskidzki",
+              "color": "red"
+            }
+          ]
         },
         "geometry": {
           "type": "LineString",

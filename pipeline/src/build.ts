@@ -91,7 +91,11 @@ function toTrailFeature(part: TrailPart): TrailFeature | null {
   if (coordinates.length < 2) return null;
   return {
     type: 'Feature',
-    properties: { colors: part.colors, ...(part.name !== undefined ? { name: part.name } : {}) },
+    properties: {
+      colors: part.colors,
+      ...(part.name !== undefined ? { name: part.name } : {}),
+      relations: part.relations,
+    },
     geometry: { type: 'LineString', coordinates },
   };
 }

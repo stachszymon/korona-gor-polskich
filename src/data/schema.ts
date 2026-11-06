@@ -34,11 +34,20 @@ const PositionSchema = z.tuple([longitude, latitude]);
 /** `[lon, lat, elevationM]` */
 const PositionWithElevationSchema = z.tuple([longitude, latitude, z.number()]);
 
+/** An OSM hiking relation a trail segment belongs to. */
+export const TrailRelationSchema = z.object({
+  id: z.int(),
+  name: z.string().optional(),
+  color: PttkColorSchema.optional(),
+});
+export type TrailRelation = z.infer<typeof TrailRelationSchema>;
+
 export const TrailFeatureSchema = z.object({
   type: z.literal('Feature'),
   properties: z.object({
     colors: z.array(PttkColorSchema).min(1),
     name: z.string().optional(),
+    relations: z.array(TrailRelationSchema).min(1),
   }),
   geometry: z.object({
     type: z.literal('LineString'),

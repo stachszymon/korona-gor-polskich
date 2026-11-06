@@ -14,7 +14,11 @@ const specPeakDetail = {
     features: [
       {
         type: 'Feature',
-        properties: { colors: ['red'], name: 'Główny Szlak Beskidzki' },
+        properties: {
+          colors: ['red'],
+          name: 'Główny Szlak Beskidzki',
+          relations: [{ id: 1234, name: 'Główny Szlak Beskidzki', color: 'red' }],
+        },
         geometry: { type: 'LineString', coordinates: [[19.5, 49.57]] },
       },
     ],
@@ -94,6 +98,26 @@ describe('PeakDetailSchema', () => {
     expect(() => PeakDetailSchema.parse(empty)).toThrow();
   });
 
+  it('trail feature without relations is rejected', () => {
+    const missing = clone(specPeakDetail) as typeof specPeakDetail;
+    delete (first(missing.trails.features).properties as { relations?: unknown }).relations;
+    expect(() => PeakDetailSchema.parse(missing)).toThrow();
+
+    const empty = clone(specPeakDetail);
+    first(empty.trails.features).properties.relations = [];
+    expect(() => PeakDetailSchema.parse(empty)).toThrow();
+  });
+
+  it('accepts a relation without name or colour but rejects a non-integer id', () => {
+    const ok = clone(specPeakDetail);
+    first(ok.trails.features).properties.relations = [{ id: 7 } as never];
+    expect(PeakDetailSchema.parse(ok).trails.features[0]!.properties.relations).toEqual([{ id: 7 }]);
+
+    const bad = clone(specPeakDetail);
+    first(bad.trails.features).properties.relations = [{ id: 1.5 } as never];
+    expect(() => PeakDetailSchema.parse(bad)).toThrow();
+  });
+
   it('route without legs is rejected', () => {
     const bad = clone(specPeakDetail) as Record<string, unknown> & typeof specPeakDetail;
     delete (first(bad.routes) as { legs?: unknown }).legs;
@@ -167,7 +191,7 @@ describe('PeakDetailSchema', () => {
 
   it('allows a trail feature without a name', () => {
     const ok = clone(specPeakDetail);
-    first(ok.trails.features).properties = { colors: ['red'] } as never;
+    first(ok.trails.features).properties = { colors: ['red'], relations: [{ id: 1 }] } as never;
     expect(() => PeakDetailSchema.parse(ok)).not.toThrow();
   });
 });

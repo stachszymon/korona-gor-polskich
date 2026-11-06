@@ -9,7 +9,14 @@
           "colors": [
             "red"
           ],
-          "name": "Szlak na Rysy"
+          "name": "Szlak na Rysy",
+          "relations": [
+            {
+              "id": 1000,
+              "name": "Szlak na Rysy",
+              "color": "red"
+            }
+          ]
         },
         "geometry": {
           "type": "LineString",

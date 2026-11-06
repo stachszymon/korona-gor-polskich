@@ -21,9 +21,17 @@ export interface SkippedRelation {
   reason: 'no-color' | 'unsupported-color';
 }
 
+export interface TrailRelationRef {
+  id: number;
+  name?: string;
+  color: PttkColor;
+}
+
 export interface TrailPart {
   colors: PttkColor[];
   name?: string;
+  /** Relations the way belongs to, sorted by colour (`PTTK_COLORS` order), then id. */
+  relations: TrailRelationRef[];
   coords: LonLat[];
 }
 
@@ -41,6 +49,7 @@ interface WayAccumulator {
   wayId: number;
   coords: LonLat[];
   colors: Set<PttkColor>;
+  relations: Map<number, TrailRelationRef>;
   name?: string;
 }
 
@@ -78,10 +87,18 @@ export function buildTrailGraph(relations: OverpassRelation[]): {
           wayId: member.ref,
           coords: member.geometry.map((p): LonLat => [p.lon, p.lat]),
           colors: new Set(),
+          relations: new Map(),
         };
         ways.set(member.ref, way);
       }
       way.colors.add(color);
+      if (!way.relations.has(relation.id)) {
+        way.relations.set(relation.id, {
+          id: relation.id,
+          ...(name !== undefined ? { name } : {}),
+          color,
+        });
+      }
       if (way.name === undefined && name !== undefined) way.name = name;
     }
   }
@@ -100,7 +117,15 @@ export function buildTrailGraph(relations: OverpassRelation[]): {
 
   for (const way of ways.values()) {
     const colors = sortColors(way.colors);
-    trails.push({ colors, ...(way.name !== undefined ? { name: way.name } : {}), coords: way.coords });
+    const relationRefs = [...way.relations.values()].sort(
+      (a, b) => PTTK_COLORS.indexOf(a.color) - PTTK_COLORS.indexOf(b.color) || a.id - b.id,
+    );
+    trails.push({
+      colors,
+      ...(way.name !== undefined ? { name: way.name } : {}),
+      relations: relationRefs,
+      coords: way.coords,
+    });
 
     let prev: LonLat | undefined;
     let prevKey: string | undefined;

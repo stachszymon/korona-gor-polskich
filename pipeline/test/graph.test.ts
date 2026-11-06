@@ -50,6 +50,22 @@ describe('buildTrailGraph', () => {
     expect(trails[0]!.coords).toEqual([A, B]);
   });
 
+  it('a way shared by red and yellow relations lists both relations with names', () => {
+    const way = { ref: 10, coords: [A, B] };
+    const { trails } = buildTrailGraph([
+      relation(30, { 'osmc:symbol': 'yellow:white:yellow_bar', name: 'Zolty' }, [way]),
+      relation(20, { 'osmc:symbol': 'red:white:red_bar', name: 'Czerwony' }, [way]),
+      relation(10, { 'osmc:symbol': 'red:white:red_bar' }, [way]),
+    ]);
+    expect(trails).toHaveLength(1);
+    // sorted by PTTK_COLORS order, then by id; unnamed relations carry no name
+    expect(trails[0]!.relations).toEqual([
+      { id: 10, color: 'red' },
+      { id: 20, name: 'Czerwony', color: 'red' },
+      { id: 30, name: 'Zolty', color: 'yellow' },
+    ]);
+  });
+
   it('two ways meeting at a common coordinate share a vertex', () => {
     const { graph } = buildTrailGraph([
       relation(1, { colour: 'red' }, [

@@ -25,12 +25,20 @@ const peakFiles: Record<string, unknown> = Object.fromEntries(
 );
 
 /**
- * TODO(v1.1 Task 5): the committed data predates `legs`; until `data:build` regenerates it
- * the assertions that parse peak files are skipped. Remove `hasLegs` and the `skipIf`s then.
+ * TODO(v1.1 Task 5): the committed data predates `legs` and trail `relations`; until
+ * `data:build` regenerates it the assertions that parse peak files are skipped. Remove
+ * `hasLegs` and the `skipIf`s then.
  */
-const hasLegs = Object.values(peakFiles).every((json) =>
-  ((json as { routes?: { legs?: unknown }[] }).routes ?? []).every((r) => Array.isArray(r.legs)),
-);
+const hasLegs = Object.values(peakFiles).every((json) => {
+  const detail = json as {
+    routes?: { legs?: unknown }[];
+    trails?: { features?: { properties?: { relations?: unknown } }[] };
+  };
+  return (
+    (detail.routes ?? []).every((r) => Array.isArray(r.legs)) &&
+    (detail.trails?.features ?? []).every((f) => Array.isArray(f.properties?.relations))
+  );
+});
 
 const KGP_PEAK_COUNT = 28;
 /** The last point of a route must lie this close to its summit. */

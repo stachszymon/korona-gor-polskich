@@ -189,7 +189,13 @@ const detail: PeakDetail = {
     features: [
       {
         type: 'Feature',
-        properties: { colors: ['red', 'blue'] },
+        properties: {
+          colors: ['red', 'blue'],
+          relations: [
+            { id: 1, name: 'Szlak czerwony', color: 'red' },
+            { id: 2, name: 'Szlak niebieski', color: 'blue' },
+          ],
+        },
         geometry: {
           type: 'LineString',
           coordinates: [

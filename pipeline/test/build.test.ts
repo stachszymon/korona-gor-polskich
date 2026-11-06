@@ -177,6 +177,33 @@ describe('buildPeak', () => {
     expect(haversineM([end[0], end[1]], [BABIA.lon, BABIA.lat])).toBeGreaterThan(9_990);
   });
 
+  it('display trail features carry relations through clipping', async () => {
+    // A long-distance trail running 30 km north from the summit: clipped, relations kept.
+    const longTrail: OverpassRelation = {
+      type: 'relation',
+      id: 99_000_001,
+      tags: { type: 'route', route: 'hiking', 'osmc:symbol': 'blue:white:blue_bar', name: 'Daleki szlak' },
+      members: [
+        {
+          type: 'way',
+          ref: 99_000_002,
+          role: '',
+          geometry: Array.from({ length: 31 }, (_, km) => ({ lat: BABIA.lat + km / 111.2, lon: BABIA.lon })),
+        },
+      ],
+    };
+    const { deps } = makeDeps([BABIA], { extraRelations: [longTrail] });
+    const { detail } = await buildPeak(BABIA, deps);
+
+    expect(detail.trails.features.length).toBeGreaterThan(0);
+    for (const f of detail.trails.features) {
+      expect(f.properties.relations.length).toBeGreaterThan(0);
+    }
+    const far = detail.trails.features.find((f) => f.properties.name === 'Daleki szlak');
+    expect(far?.properties.relations).toEqual([{ id: 99_000_001, name: 'Daleki szlak', color: 'blue' }]);
+    expect(far?.properties.colors).toEqual(['blue']);
+  });
+
   it('reports skipped relations with their reason', async () => {
     const { deps } = makeDeps([BABIA]);
     const { report } = await buildPeak(BABIA, deps);
