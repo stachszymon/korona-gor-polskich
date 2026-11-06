@@ -194,7 +194,7 @@ export function chooseLegs(steps: { colors: PttkColor[]; lengthM: number }[]): L
     }
   }
 
-  const legs: { color: LegColor; lengthM: number }[] = [];
+  const legs: Leg[] = [];
   let k = 0;
   for (const s of steps) {
     const color: LegColor = s.colors.length > 0 ? chosen[k++]! : 'none';
@@ -202,7 +202,47 @@ export function chooseLegs(steps: { colors: PttkColor[]; lengthM: number }[]): L
     if (last?.color === color) last.lengthM += s.lengthM;
     else legs.push({ color, lengthM: s.lengthM });
   }
-  return legs.map((l) => ({ color: l.color, lengthM: Math.round(l.lengthM / 10) * 10 }));
+  const rounded = absorbSlivers(legs).map((l) => ({ color: l.color, lengthM: Math.round(l.lengthM / 10) * 10 }));
+  // An unmarked gap of a few metres rounds to 0 m; drop it so the legs around it can merge.
+  return mergeAdjacent(rounded.filter((l) => l.lengthM > 0 || l.color !== 'none'));
+}
+
+/** Coloured legs shorter than this are junction slivers, not a trail anyone follows. */
+export const MIN_LEG_M = 100;
+
+function mergeAdjacent(legs: Leg[]): Leg[] {
+  const out: Leg[] = [];
+  for (const l of legs) {
+    const last = out.at(-1);
+    if (last?.color === l.color) last.lengthM += l.lengthM;
+    else out.push({ ...l });
+  }
+  return out;
+}
+
+/**
+ * Adds every coloured leg shorter than `MIN_LEG_M` to a coloured neighbour: the previous
+ * leg, or the next one when it is the first leg or follows an unmarked leg. Unmarked legs
+ * never absorb and are never absorbed; a sliver with only unmarked neighbours stays. Legs of
+ * one colour that become adjacent are merged. A route shorter than `MIN_LEG_M` is kept as is.
+ */
+function absorbSlivers(input: Leg[]): Leg[] {
+  if (input.reduce((sum, l) => sum + l.lengthM, 0) < MIN_LEG_M) return input;
+  let legs = mergeAdjacent(input);
+  for (;;) {
+    const i = legs.findIndex((l, j) => {
+      if (l.color === 'none' || l.lengthM >= MIN_LEG_M) return false;
+      return (legs[j - 1] !== undefined && legs[j - 1]!.color !== 'none') ||
+        (legs[j + 1] !== undefined && legs[j + 1]!.color !== 'none');
+    });
+    if (i === -1) return legs;
+    const prev = legs[i - 1];
+    const target = prev !== undefined && prev.color !== 'none' ? i - 1 : i + 1;
+    legs = legs.map((l) => ({ ...l }));
+    legs[target]!.lengthM += legs[i]!.lengthM;
+    legs.splice(i, 1);
+    legs = mergeAdjacent(legs);
+  }
 }
 
 /** Colours of the legs in order, without `none` and without adjacent repeats. */

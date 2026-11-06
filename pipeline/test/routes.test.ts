@@ -98,6 +98,50 @@ describe('chooseLegs', () => {
     expect(chooseLegs([])).toEqual([]);
     expect(chooseLegs([step([], 300)])).toEqual([{ color: 'none', lengthM: 300 }]);
   });
+
+  it('chooseLegs absorbs a 40 m red sliver at the summit into the long yellow leg before it', () => {
+    const legs = chooseLegs([step(['yellow'], 2500), step(['red'], 40)]);
+    expect(legs).toEqual([{ color: 'yellow', lengthM: 2540 }]);
+  });
+
+  it('chooseLegs absorbs a first-leg sliver into the next leg', () => {
+    const legs = chooseLegs([step(['blue'], 60), step(['green'], 3000)]);
+    expect(legs).toEqual([{ color: 'green', lengthM: 3060 }]);
+  });
+
+  it('chooseLegs drops a 0 m leg', () => {
+    const legs = chooseLegs([step(['red'], 4660), step(['green'], 0)]);
+    expect(legs).toEqual([{ color: 'red', lengthM: 4660 }]);
+  });
+
+  it('chooseLegs merges a sliver between two legs of one colour into a single leg', () => {
+    const legs = chooseLegs([step(['green'], 1500), step(['red'], 80), step(['green'], 2000)]);
+    expect(legs).toEqual([{ color: 'green', lengthM: 3580 }]);
+  });
+
+  it('chooseLegs never absorbs into or out of unmarked legs', () => {
+    // red sliver after an unmarked leg goes to the next coloured leg, the none leg stays
+    expect(chooseLegs([step([], 50), step(['red'], 40), step(['blue'], 900)])).toEqual([
+      { color: 'none', lengthM: 50 },
+      { color: 'blue', lengthM: 940 },
+    ]);
+    // a sliver with only unmarked neighbours is kept
+    expect(chooseLegs([step([], 900), step(['red'], 40)])).toEqual([
+      { color: 'none', lengthM: 900 },
+      { color: 'red', lengthM: 40 },
+    ]);
+  });
+
+  it('chooseLegs drops an unmarked gap that rounds to 0 m and joins the legs around it', () => {
+    expect(chooseLegs([step(['red'], 1000), step([], 3), step(['red'], 800)])).toEqual([{ color: 'red', lengthM: 1800 }]);
+  });
+
+  it('chooseLegs keeps a route shorter than 100 m as it is', () => {
+    expect(chooseLegs([step(['red'], 30), step(['blue'], 40)])).toEqual([
+      { color: 'red', lengthM: 30 },
+      { color: 'blue', lengthM: 40 },
+    ]);
+  });
 });
 
 describe('candidateRoutes', () => {

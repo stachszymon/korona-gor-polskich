@@ -116,10 +116,11 @@ describe('generated data in public/data', () => {
     for (const route of routes) {
       expect(route.legs.length, route.id).toBeGreaterThanOrEqual(1);
       expect(route.colors.length, route.id).toBeGreaterThanOrEqual(1);
+      for (const leg of route.legs) expect(leg.lengthM, `${route.id}: ${leg.color} leg`).toBeGreaterThan(0);
       const legsM = route.legs.reduce((sum, leg) => sum + leg.lengthM, 0);
-      const distanceM = route.distanceKm * 1000;
-      expect(Math.abs(legsM - distanceM), `${route.id}: legs ${Math.round(legsM)} m, distance ${distanceM} m`).toBeLessThanOrEqual(
-        LEG_LENGTH_TOLERANCE * distanceM + DISTANCE_ROUNDING_M,
+      const routeM = route.distanceKm * 1000;
+      expect(Math.abs(legsM - routeM), `${route.id}: legs ${Math.round(legsM)} m, distance ${routeM} m`).toBeLessThanOrEqual(
+        LEG_LENGTH_TOLERANCE * routeM + DISTANCE_ROUNDING_M,
       );
       // `colors` are the marked legs' colours in order, an unmarked gap not repeating a colour.
       const marked = route.legs
@@ -147,9 +148,10 @@ describe('generated data in public/data', () => {
     expect(segments).toBeGreaterThanOrEqual(KGP_PEAK_COUNT);
   });
 
-  it('mountain-area.json exists and passes MountainAreaSchema', () => {
+  it('mountain-area.json exists, passes MountainAreaSchema and has 2 polygons', () => {
     expect(existsSync(areaFile)).toBe(true);
     const area = MountainAreaSchema.parse(readJson(areaFile));
-    expect(area.areas.coordinates.length).toBeGreaterThanOrEqual(1);
+    // One area from Wysoka Kopa to Tarnica, Łysica apart.
+    expect(area.areas.coordinates).toHaveLength(2);
   });
 });
