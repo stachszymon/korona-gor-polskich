@@ -1,10 +1,13 @@
 import type { MultiPolygon } from 'geojson';
-import type { FilterSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
+import type { FilterSpecification, LayerSpecification } from 'maplibre-gl';
 
 /** Country and state names make no sense once only the mountains are in focus. */
 const HIDDEN_LABEL_ID = /^label_(country_\d+|state)$/;
 
-/** Place and water names that are kept only where they fall inside the mountain areas. */
+/**
+ * Place, water, river, airport and path names that are kept only where they fall inside the mountain areas
+ * (MapLibre's `within` expression works for point and line features).
+ */
 const RESTRICTED_LABEL_IDS = new Set([
   'label_city',
   'label_city_capital',
@@ -13,6 +16,9 @@ const RESTRICTED_LABEL_IDS = new Set([
   'label_other',
   'water_name_point_label',
   'water_name_line_label',
+  'waterway_line_label',
+  'airport',
+  'highway-name-path',
 ]);
 
 type Within = ['within', MultiPolygon];
@@ -49,19 +55,4 @@ export function labelRestrictions(layers: readonly LayerSpecification[], areas: 
     else if (RESTRICTED_LABEL_IDS.has(layer.id)) filters[layer.id] = withinAreas(layer.filter, areas);
   }
   return { hidden, filters };
-}
-
-/**
- * Hides country and state labels and limits place and water name labels to `areas`
- * (MapLibre's `within` expression works for point and line features).
- * Pure: the input style is never mutated.
- */
-export function restrictLabelsToAreas(style: StyleSpecification, areas: MultiPolygon): StyleSpecification {
-  const { hidden, filters } = labelRestrictions(style.layers, areas);
-  const layers = structuredClone(style.layers).map((layer): LayerSpecification => {
-    if (hidden.includes(layer.id)) return { ...layer, layout: { ...layer.layout, visibility: 'none' } } as LayerSpecification;
-    const filter = filters[layer.id];
-    return filter === undefined ? layer : ({ ...layer, filter } as LayerSpecification);
-  });
-  return { ...structuredClone(style), layers };
 }

@@ -47,15 +47,24 @@ const h = vi.hoisted(() => {
     addLayer(spec: { id: string }, beforeId?: string) {
       this.layers.push({ spec, beforeId });
     }
+    /** The style as the map would report it: the original layers with `setFilter` / `setLayoutProperty` applied. */
     getStyle() {
+      const base: { id: string; type: string; filter?: unknown; layout?: Record<string, unknown> }[] = [
+        { id: 'water', type: 'fill' },
+        { id: 'place', type: 'symbol' },
+        { id: 'label_city', type: 'symbol', filter: ['==', ['get', 'class'], 'city'] },
+        { id: 'label_village', type: 'symbol' },
+        { id: 'label_country_1', type: 'symbol', filter: ['==', ['get', 'class'], 'country'] },
+      ];
       return {
-        layers: [
-          { id: 'water', type: 'fill' },
-          { id: 'place', type: 'symbol' },
-          { id: 'label_city', type: 'symbol', filter: ['==', ['get', 'class'], 'city'] },
-          { id: 'label_village', type: 'symbol' },
-          { id: 'label_country_1', type: 'symbol', filter: ['==', ['get', 'class'], 'country'] },
-        ],
+        layers: base.map((layer) => {
+          const visibility = this.layout[`${layer.id}.visibility`];
+          return {
+            ...layer,
+            ...(layer.id in this.filters ? { filter: this.filters[layer.id] } : {}),
+            ...(visibility === undefined ? {} : { layout: { ...layer.layout, visibility } }),
+          };
+        }),
       };
     }
     setFilter(layer: string, filter: unknown) {
