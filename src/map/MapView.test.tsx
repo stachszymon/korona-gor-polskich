@@ -167,6 +167,7 @@ const route: Route = {
   descentM: 900,
   durationMin: 300,
   colors: ['red'],
+  legs: [{ color: 'red', lengthM: 10000 }],
   geometry: {
     type: 'LineString',
     coordinates: [
@@ -188,7 +189,13 @@ const detail: PeakDetail = {
     features: [
       {
         type: 'Feature',
-        properties: { colors: ['red', 'blue'] },
+        properties: {
+          colors: ['red', 'blue'],
+          relations: [
+            { id: 1, name: 'Szlak czerwony', color: 'red' },
+            { id: 2, name: 'Szlak niebieski', color: 'blue' },
+          ],
+        },
         geometry: {
           type: 'LineString',
           coordinates: [

@@ -35,6 +35,7 @@ function route(id: string, name: string): Route {
     descentM: 0,
     durationMin: 165,
     colors: ['red'],
+    legs: [{ color: 'red', lengthM: 5000 }],
     geometry: { type: 'LineString', coordinates: [[19.5, 49.6, 800], [19.5294, 49.5731, 1725]] },
     profile: [[0, 800], [5000, 1725]],
   };
@@ -131,9 +132,10 @@ describe('route overrides', () => {
     await expect(loadOverrides(broken)).rejects.toThrow(broken);
   });
 
-  it('accepts maxRoutes between 1 and 3', () => {
+  it('accepts maxRoutes between 1 and 20', () => {
     expect(RouteOverridesSchema.parse({ rysy: { maxRoutes: 2 } })).toEqual({ rysy: { maxRoutes: 2 } });
-    for (const bad of [0, 4, 1.5]) {
+    expect(RouteOverridesSchema.parse({ rysy: { maxRoutes: 20 } })).toEqual({ rysy: { maxRoutes: 20 } });
+    for (const bad of [0, 21, 1.5]) {
       expect(RouteOverridesSchema.safeParse({ rysy: { maxRoutes: bad } }).success).toBe(false);
     }
   });

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { RouteSchema } from '../../src/data/schema';
+import { type PttkColor, RouteSchema } from '../../src/data/schema';
 import { haversineM, lineLengthM, type LonLat } from '../src/geo';
 import { vertexKey } from '../src/graph';
 import {
   candidateRoutes,
+  chooseLegs,
   edgeKey,
   enrichRoute,
   type EnrichedRoute,
@@ -51,6 +52,95 @@ describe('shortestPaths', () => {
     addWay(g, line, 1, ['red']);
     const { dist } = shortestPaths(g, vertexKey(line[0]!));
     expect(dist.get(vertexKey(line[1999]!))).toBeCloseTo(lineLengthM(line), 3);
+  });
+});
+
+const step = (colors: PttkColor[], lengthM: number) => ({ colors, lengthM });
+
+describe('chooseLegs', () => {
+  it('chooseLegs keeps one colour across a shared segment', () => {
+    const legs = chooseLegs([step(['red'], 1000), step(['red', 'yellow'], 500), step(['red'], 800)]);
+    expect(legs).toEqual([{ color: 'red', lengthM: 2300 }]);
+  });
+
+  it('chooseLegs switches once when the trail changes', () => {
+    const legs = chooseLegs([step(['red'], 1000), step(['red', 'yellow'], 500), step(['yellow'], 700)]);
+    expect(legs.map((l) => l.color)).toEqual(['red', 'yellow']);
+    expect(legs.reduce((s, l) => s + l.lengthM, 0)).toBe(2200);
+  });
+
+  it('chooseLegs marks unmarked steps as none', () => {
+    const legs = chooseLegs([step(['red'], 1000), step([], 500), step(['red'], 800)]);
+    expect(legs).toEqual([
+      { color: 'red', lengthM: 1000 },
+      { color: 'none', lengthM: 500 },
+      { color: 'red', lengthM: 800 },
+    ]);
+  });
+
+  it('chooseLegs does not count an unmarked step as a colour change', () => {
+    const legs = chooseLegs([step(['red', 'blue'], 1000), step([], 500), step(['blue'], 800)]);
+    expect(legs.map((l) => l.color)).toEqual(['blue', 'none', 'blue']);
+  });
+
+  it('chooseLegs prefers the longer run when changes tie, then PTTK order', () => {
+    // red|yellow in the middle: yellow keeps the long last step, red the short first one.
+    const longer = chooseLegs([step(['red'], 100), step(['red', 'yellow'], 100), step(['yellow'], 900)]);
+    expect(longer.map((l) => l.color)).toEqual(['red', 'yellow']);
+    expect(longer.map((l) => l.lengthM)).toEqual([100, 1000]);
+    // fully symmetric: PTTK order (red before blue) decides
+    const tie = chooseLegs([step(['blue', 'red'], 100)]);
+    expect(tie).toEqual([{ color: 'red', lengthM: 100 }]);
+  });
+
+  it('chooseLegs rounds leg lengths to 10 m and handles no steps or only unmarked steps', () => {
+    expect(chooseLegs([step(['green'], 1234), step(['green'], 1.4)])).toEqual([{ color: 'green', lengthM: 1240 }]);
+    expect(chooseLegs([])).toEqual([]);
+    expect(chooseLegs([step([], 300)])).toEqual([{ color: 'none', lengthM: 300 }]);
+  });
+
+  it('chooseLegs absorbs a 40 m red sliver at the summit into the long yellow leg before it', () => {
+    const legs = chooseLegs([step(['yellow'], 2500), step(['red'], 40)]);
+    expect(legs).toEqual([{ color: 'yellow', lengthM: 2540 }]);
+  });
+
+  it('chooseLegs absorbs a first-leg sliver into the next leg', () => {
+    const legs = chooseLegs([step(['blue'], 60), step(['green'], 3000)]);
+    expect(legs).toEqual([{ color: 'green', lengthM: 3060 }]);
+  });
+
+  it('chooseLegs drops a 0 m leg', () => {
+    const legs = chooseLegs([step(['red'], 4660), step(['green'], 0)]);
+    expect(legs).toEqual([{ color: 'red', lengthM: 4660 }]);
+  });
+
+  it('chooseLegs merges a sliver between two legs of one colour into a single leg', () => {
+    const legs = chooseLegs([step(['green'], 1500), step(['red'], 80), step(['green'], 2000)]);
+    expect(legs).toEqual([{ color: 'green', lengthM: 3580 }]);
+  });
+
+  it('chooseLegs never absorbs into or out of unmarked legs', () => {
+    // red sliver after an unmarked leg goes to the next coloured leg, the none leg stays
+    expect(chooseLegs([step([], 50), step(['red'], 40), step(['blue'], 900)])).toEqual([
+      { color: 'none', lengthM: 50 },
+      { color: 'blue', lengthM: 940 },
+    ]);
+    // a sliver with only unmarked neighbours is kept
+    expect(chooseLegs([step([], 900), step(['red'], 40)])).toEqual([
+      { color: 'none', lengthM: 900 },
+      { color: 'red', lengthM: 40 },
+    ]);
+  });
+
+  it('chooseLegs drops an unmarked gap that rounds to 0 m and joins the legs around it', () => {
+    expect(chooseLegs([step(['red'], 1000), step([], 3), step(['red'], 800)])).toEqual([{ color: 'red', lengthM: 1800 }]);
+  });
+
+  it('chooseLegs keeps a route shorter than 100 m as it is', () => {
+    expect(chooseLegs([step(['red'], 30), step(['blue'], 40)])).toEqual([
+      { color: 'red', lengthM: 30 },
+      { color: 'blue', lengthM: 40 },
+    ]);
   });
 });
 
@@ -113,7 +203,39 @@ describe('candidateRoutes', () => {
 
     const [route] = candidateRoutes(g, vertexKey(SUMMIT), [trailheadAt('start', 'Start', start)]);
 
-    expect(route!.colors).toEqual(['yellow', 'red', 'green', 'blue']);
+    // Green is the one colour shared by the last two edges, so the route changes colour only once.
+    expect(route!.colors).toEqual(['yellow', 'green']);
+    expect(route!.legs.map((l) => l.color)).toEqual(['yellow', 'green']);
+  });
+
+  it('candidate colors on a five-trail shared corridor collapse to the trail actually followed', () => {
+    const g = emptyGraph();
+    const start: LonLat = [19.5294, 49.6];
+    const a: LonLat = [19.5294, 49.59];
+    const b: LonLat = [19.5294, 49.58];
+    addWay(g, [start, a], 1, ['red']);
+    addWay(g, [a, b], 2, ['red', 'blue', 'green', 'yellow']);
+    addWay(g, [b, SUMMIT], 3, ['red']);
+
+    const [route] = candidateRoutes(g, vertexKey(SUMMIT), [trailheadAt('start', 'Start', start)]);
+
+    expect(route!.colors).toEqual(['red']);
+    expect(route!.legs).toHaveLength(1);
+    expect(route!.legs[0]!.color).toBe('red');
+    expect(route!.legs[0]!.lengthM).toBe(Math.round(route!.lengthM / 10) * 10);
+  });
+
+  it('gives unmarked summit path edges a none leg that is left out of colors', () => {
+    const g = emptyGraph();
+    const start: LonLat = [19.5294, 49.6];
+    const a: LonLat = [19.5294, 49.58];
+    addWay(g, [start, a], 1, ['red']);
+    addWay(g, [a, SUMMIT], -1, []);
+
+    const [route] = candidateRoutes(g, vertexKey(SUMMIT), [trailheadAt('start', 'Start', start)]);
+
+    expect(route!.legs.map((l) => l.color)).toEqual(['red', 'none']);
+    expect(route!.colors).toEqual(['red']);
   });
 
   it('keys edges by sorted vertex pair and way id', () => {
@@ -161,6 +283,7 @@ function enriched(id: string, start: LonLat, durationMin: number, edges: Record<
     coords: [start, SUMMIT],
     lengthM,
     colors: ['red'],
+    legs: [{ color: 'red', lengthM: Math.round(lengthM / 10) * 10 }],
     edges: new Map(Object.entries(edges)),
     coords3d: [
       [start[0], start[1], 800],
@@ -180,28 +303,41 @@ function enriched(id: string, start: LonLat, durationMin: number, edges: Record<
 const startAt = (i: number): LonLat => [19.3 + i * 0.05, 49.65];
 
 describe('selectRoutes', () => {
-  it('selectRoutes picks at most 3, fastest first', () => {
-    const routes = [200, 100, 300, 150, 250].map((d, i) =>
-      enriched(`r${d}`, startAt(i), d, { [`e${i}`]: 5000 }),
-    );
-    expect(selectRoutes(routes).map((r) => r.trailhead.id)).toEqual(['r100', 'r150', 'r200']);
-    expect(selectRoutes(routes, { maxCount: 2 }).map((r) => r.trailhead.id)).toEqual(['r100', 'r150']);
+  it('selectRoutes keeps up to 20 routes by default, fastest first', () => {
+    const routes = Array.from({ length: 25 }, (_, i) => enriched(`r${i}`, startAt(i), 100 + i, { [`e${i}`]: 5000 }));
+    const twenty = Array.from({ length: 20 }, (_, i) => `r${i}`);
+    expect(selectRoutes(routes).map((r) => r.trailhead.id)).toEqual(twenty);
+    expect(selectRoutes(routes, { maxCount: 2 }).map((r) => r.trailhead.id)).toEqual(['r0', 'r1']);
   });
 
-  it('selectRoutes rejects a start within 2 km of an already selected start', () => {
+  it('starts 1.2 km apart are both kept, 0.8 km apart are not', () => {
     const base: LonLat = [19.5, 49.65];
+    const at1200: LonLat = [base[0] + 0.0167, base[1]];
+    const at800: LonLat = [base[0] + 0.011, base[1]];
+    expect(haversineM(base, at1200)).toBeGreaterThan(1200);
+    expect(haversineM(base, at800)).toBeLessThan(800);
+
     const a = enriched('a', base, 100, { e1: 5000 });
-    const b = enriched('b', [base[0] + 0.02, base[1]], 120, { e2: 5000 }); // ~1.4 km from a
-    const c = enriched('c', [base[0] + 0.035, base[1]], 140, { e3: 5000 }); // ~2.5 km from a
-    expect(selectRoutes([c, b, a]).map((r) => r.trailhead.id)).toEqual(['a', 'c']);
+    const far = enriched('far', at1200, 120, { e2: 5000 });
+    const near = enriched('near', at800, 120, { e3: 5000 });
+    expect(selectRoutes([a, far]).map((r) => r.trailhead.id)).toEqual(['a', 'far']);
+    expect(selectRoutes([a, near]).map((r) => r.trailhead.id)).toEqual(['a']);
   });
 
-  it('selectRoutes rejects a route sharing more than 50% of its length with a selected route', () => {
-    const a = enriched('a', startAt(0), 100, { e1: 1000, e2: 1000 });
-    const b = enriched('b', startAt(1), 120, { e1: 1000, e3: 900 }); // 1000/1900 > 0.5 with a
-    const c = enriched('c', startAt(2), 140, { e2: 1000, e4: 1000 }); // exactly 0.5 with a: allowed
-    const d = enriched('d', startAt(3), 160, { e4: 1000, e5: 500 }); // 0 with a, 2/3 with c
-    expect(selectRoutes([a, b, c, d]).map((r) => r.trailhead.id)).toEqual(['a', 'c']);
+  it('75% overlap is kept, 85% is rejected (default maxOverlap 0.8, 80% itself is kept)', () => {
+    const a = enriched('a', startAt(0), 100, { e1: 1000 });
+    const seventyFive = enriched('seventy-five', startAt(1), 120, { e1: 750, e2: 250 }); // 750/1000 shared with a
+    const eighty = enriched('eighty', startAt(2), 130, { e1: 800, e3: 200 }); // exactly 0.8
+    const eightyFive = enriched('eighty-five', startAt(3), 140, { e1: 850, e4: 150 }); // 850/1000 shared with a
+    expect(selectRoutes([a, seventyFive]).map((r) => r.trailhead.id)).toEqual(['a', 'seventy-five']);
+    expect(selectRoutes([a, eighty]).map((r) => r.trailhead.id)).toEqual(['a', 'eighty']);
+    expect(selectRoutes([a, eightyFive]).map((r) => r.trailhead.id)).toEqual(['a']);
+  });
+
+  it('the fastest candidate is always kept even when every other overlaps it', () => {
+    const fastest = enriched('fastest', startAt(0), 100, { e1: 1000 });
+    const others = [1, 2, 3].map((i) => enriched(`other-${i}`, startAt(i), 100 + i, { e1: 900, [`x${i}`]: 100 }));
+    expect(selectRoutes([fastest, ...others]).map((r) => r.trailhead.id)).toEqual(['fastest']);
   });
 
   it('breaks duration ties by length, then trailhead id', () => {
@@ -222,17 +358,18 @@ describe('toRoute', () => {
     const [candidate] = candidateRoutes(g, vertexKey(SUMMIT), [trailhead]);
     const r = await enrichRoute(candidate!, fakeSampler);
 
-    const route = toRoute('babia-gora', r, 'Babia Góra');
+    const route = toRoute('babia-gora', r);
 
     expect(RouteSchema.parse(route)).toEqual(route);
     expect(route.id).toBe('babia-gora--zawoja-markowa');
-    expect(route.name).toBe('Zawoja Markowa → Babia Góra');
+    expect(route.name).toBe('Z Zawoja Markowa');
     expect(route.trailhead).toEqual({ name: 'Zawoja Markowa', lat: 49.61, lon: 19.5294, kind: 'parking' });
     expect(route.distanceKm).toBe(Math.round(r.lengthM / 100) / 10);
     expect(route.ascentM).toBe(r.ascentM);
     expect(route.descentM).toBe(r.descentM);
     expect(route.durationMin).toBe(r.durationMin);
     expect(route.colors).toEqual(r.colors);
+    expect(route.legs).toEqual(r.legs);
     expect(route.profile).toEqual(r.profile);
 
     const coords = route.geometry.coordinates;

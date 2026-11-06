@@ -7,6 +7,7 @@ import {
   type PeaksIndex,
   type TrailFeature,
 } from '../../src/data/schema';
+import { buildMountainArea, serializeMountainArea } from './area';
 import { createDemSampler, type FetchTile } from './elevation';
 import { clipLineToRadius, lineLengthM, roundCoord, simplifyLine, type LonLat } from './geo';
 import {
@@ -68,7 +69,7 @@ export const SUMMIT_SNAP_M = 150;
 /** The end of an override `summitPath` must lie this close to a trail vertex. */
 export const SUMMIT_PATH_SNAP_M = 30;
 /** Larger peak files are reported as a warning. */
-export const MAX_PEAK_FILE_BYTES = 500_000;
+export const MAX_PEAK_FILE_BYTES = 1_500_000;
 
 const TRAIL_SIMPLIFY_TOLERANCE_M = 5;
 
@@ -91,7 +92,11 @@ function toTrailFeature(part: TrailPart): TrailFeature | null {
   if (coordinates.length < 2) return null;
   return {
     type: 'Feature',
-    properties: { colors: part.colors, ...(part.name !== undefined ? { name: part.name } : {}) },
+    properties: {
+      colors: part.colors,
+      ...(part.name !== undefined ? { name: part.name } : {}),
+      relations: part.relations,
+    },
     geometry: { type: 'LineString', coordinates },
   };
 }
@@ -186,9 +191,9 @@ export async function buildPeak(
     const enriched = [];
     for (const candidate of candidates) enriched.push(await enrichRoute(candidate, sampler));
 
-    const selected = selectRoutes(enriched, { maxCount: peakOverrides?.maxRoutes ?? 3 });
+    const selected = selectRoutes(enriched, { maxCount: peakOverrides?.maxRoutes ?? 20 });
     routes = applyRenames(
-      selected.map((r) => toRoute(src.id, r, src.name)),
+      selected.map((r) => toRoute(src.id, r)),
       deps.overrides,
       src.id,
     );
@@ -370,6 +375,20 @@ export async function buildAll(
   });
   const files = new Map<string, string>([['peaks.json', `${JSON.stringify(index, null, 2)}\n`]]);
   for (const [id, detail] of details) files.set(join('peaks', `${id}.json`), serializeDetail(detail));
+
+  // Computed from this build's data before anything is replaced, so a failure leaves `outDir` untouched.
+  try {
+    const area = buildMountainArea(
+      index.peaks,
+      [...details.values()].flatMap((d) => d.routes.map((r) => r.geometry.coordinates.map(([lon, lat]): LonLat => [lon, lat]))),
+    );
+    files.set('mountain-area.json', serializeMountainArea(area));
+  } catch (error) {
+    deps.log(`the mountain area could not be built, the output directory was not changed`);
+    const failed = emptyReport('mountain-area');
+    failed.errors.push(`mountain area: ${errorMessage(error)}`);
+    return { ok: false, reports: [...reports, failed] };
+  }
 
   await replaceDirectory(outDir, files);
   deps.log(`wrote ${files.size} files to ${outDir}`);

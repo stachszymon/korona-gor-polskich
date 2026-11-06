@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MountainAreaSchema,
   PeakDetailSchema,
   PeaksIndexSchema,
   PTTK_COLORS,
@@ -14,7 +15,11 @@ const specPeakDetail = {
     features: [
       {
         type: 'Feature',
-        properties: { colors: ['red'], name: 'Główny Szlak Beskidzki' },
+        properties: {
+          colors: ['red'],
+          name: 'Główny Szlak Beskidzki',
+          relations: [{ id: 1234, name: 'Główny Szlak Beskidzki', color: 'red' }],
+        },
         geometry: { type: 'LineString', coordinates: [[19.5, 49.57]] },
       },
     ],
@@ -29,6 +34,10 @@ const specPeakDetail = {
       descentM: 40,
       durationMin: 210,
       colors: ['red', 'yellow'],
+      legs: [
+        { color: 'red', lengthM: 5200 },
+        { color: 'yellow', lengthM: 2200 },
+      ],
       geometry: { type: 'LineString', coordinates: [[19.5, 49.6, 870]] },
       profile: [
         [0, 870],
@@ -90,22 +99,81 @@ describe('PeakDetailSchema', () => {
     expect(() => PeakDetailSchema.parse(empty)).toThrow();
   });
 
-  it('rejects more than 3 routes', () => {
+  it('trail feature without relations is rejected', () => {
+    const missing = clone(specPeakDetail) as typeof specPeakDetail;
+    delete (first(missing.trails.features).properties as { relations?: unknown }).relations;
+    expect(() => PeakDetailSchema.parse(missing)).toThrow();
+
+    const empty = clone(specPeakDetail);
+    first(empty.trails.features).properties.relations = [];
+    expect(() => PeakDetailSchema.parse(empty)).toThrow();
+  });
+
+  it('accepts a relation without a name', () => {
+    const ok = clone(specPeakDetail);
+    first(ok.trails.features).properties.relations = [{ id: 7, color: 'red' } as never];
+    expect(PeakDetailSchema.parse(ok).trails.features[0]!.properties.relations).toEqual([
+      { id: 7, color: 'red' },
+    ]);
+  });
+
+  it('rejects a relation without a colour', () => {
     const bad = clone(specPeakDetail);
-    bad.routes = [0, 1, 2, 3].map((i) => ({
+    first(bad.trails.features).properties.relations = [{ id: 7, name: 'Szlak' } as never];
+    expect(() => PeakDetailSchema.parse(bad)).toThrow();
+  });
+
+  it('rejects a relation with a non-integer id', () => {
+    const bad = clone(specPeakDetail);
+    first(bad.trails.features).properties.relations = [{ id: 1.5, color: 'red' } as never];
+    expect(() => PeakDetailSchema.parse(bad)).toThrow();
+  });
+
+  it('route without legs is rejected', () => {
+    const bad = clone(specPeakDetail) as Record<string, unknown> & typeof specPeakDetail;
+    delete (first(bad.routes) as { legs?: unknown }).legs;
+    expect(() => PeakDetailSchema.parse(bad)).toThrow();
+  });
+
+  it('leg with colour none is accepted', () => {
+    const ok = clone(specPeakDetail);
+    first(ok.routes).legs = [
+      { color: 'red', lengthM: 6000 },
+      { color: 'none', lengthM: 1400 },
+    ];
+    expect(PeakDetailSchema.parse(ok).routes[0]!.legs[1]!.color).toBe('none');
+  });
+
+  it('rejects an empty legs list, an unknown leg colour and a negative leg length', () => {
+    const empty = clone(specPeakDetail);
+    first(empty.routes).legs = [];
+    expect(() => PeakDetailSchema.parse(empty)).toThrow();
+
+    const unknown = clone(specPeakDetail);
+    first(unknown.routes).legs = [{ color: 'orange', lengthM: 100 }];
+    expect(() => PeakDetailSchema.parse(unknown)).toThrow();
+
+    const negative = clone(specPeakDetail);
+    first(negative.routes).legs = [{ color: 'red', lengthM: -10 }];
+    expect(() => PeakDetailSchema.parse(negative)).toThrow();
+  });
+
+  it('rejects more than 20 routes', () => {
+    const bad = clone(specPeakDetail);
+    bad.routes = Array.from({ length: 21 }, (_, i) => ({
       ...clone(first(specPeakDetail.routes)),
       id: `babia-gora--start-${i}`,
     }));
     expect(() => PeakDetailSchema.parse(bad)).toThrow();
   });
 
-  it('accepts exactly 3 routes', () => {
+  it('accepts exactly 20 routes', () => {
     const ok = clone(specPeakDetail);
-    ok.routes = [0, 1, 2].map((i) => ({
+    ok.routes = Array.from({ length: 20 }, (_, i) => ({
       ...clone(first(specPeakDetail.routes)),
       id: `babia-gora--start-${i}`,
     }));
-    expect(PeakDetailSchema.parse(ok).routes).toHaveLength(3);
+    expect(PeakDetailSchema.parse(ok).routes).toHaveLength(20);
   });
 
   it('rejects a route id without the peak--start separator', () => {
@@ -134,7 +202,7 @@ describe('PeakDetailSchema', () => {
 
   it('allows a trail feature without a name', () => {
     const ok = clone(specPeakDetail);
-    first(ok.trails.features).properties = { colors: ['red'] } as never;
+    first(ok.trails.features).properties = { colors: ['red'], relations: [{ id: 1, color: 'red' }] } as never;
     expect(() => PeakDetailSchema.parse(ok)).not.toThrow();
   });
 });
@@ -154,12 +222,18 @@ describe('PeaksIndexSchema', () => {
     expect(() => PeaksIndexSchema.parse(bad)).toThrow();
   });
 
-  it('rejects routeCount above 3 or below 0', () => {
-    for (const routeCount of [4, -1]) {
+  it('rejects routeCount above 20 or below 0', () => {
+    for (const routeCount of [21, -1]) {
       const bad = clone(specPeaksIndex);
       first(bad.peaks).routeCount = routeCount;
       expect(() => PeaksIndexSchema.parse(bad)).toThrow();
     }
+  });
+
+  it('accepts routeCount 20', () => {
+    const ok = clone(specPeaksIndex);
+    first(ok.peaks).routeCount = 20;
+    expect(() => PeaksIndexSchema.parse(ok)).not.toThrow();
   });
 
   it('rejects a fractional elevation', () => {
@@ -173,5 +247,39 @@ describe('constants', () => {
   it('exports the PTTK colors and trailhead kinds', () => {
     expect(PTTK_COLORS).toEqual(['red', 'blue', 'green', 'yellow', 'black']);
     expect(TRAILHEAD_KINDS).toEqual(['parking', 'station', 'bus_stop', 'place', 'manual']);
+  });
+});
+
+describe('MountainAreaSchema', () => {
+  const area = {
+    areas: {
+      type: 'MultiPolygon',
+      coordinates: [
+        [
+          [
+            [15, 50],
+            [16, 50],
+            [16, 51],
+            [15, 50],
+          ],
+        ],
+      ],
+    },
+    bounds: [14.7, 49.7, 16.3, 51.3],
+  };
+
+  it('accepts a multipolygon with four bounds', () => {
+    expect(MountainAreaSchema.safeParse(area).success).toBe(true);
+  });
+
+  it('rejects bounds with three numbers', () => {
+    expect(MountainAreaSchema.safeParse({ ...area, bounds: [14.7, 49.7, 16.3] }).success).toBe(false);
+  });
+
+  it('rejects a different geometry type and out-of-range positions', () => {
+    expect(MountainAreaSchema.safeParse({ ...area, areas: { type: 'Polygon', coordinates: [] } }).success).toBe(false);
+    expect(
+      MountainAreaSchema.safeParse({ ...area, areas: { type: 'MultiPolygon', coordinates: [[[[200, 50]]]] } }).success,
+    ).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import type { PttkColor, Route } from '../../src/data/schema';
+import { type Leg, type LegColor, PTTK_COLORS, type PttkColor, type Route } from '../../src/data/schema';
 import { ascentDescent, buildProfile, type DemSampler } from './elevation';
 import { haversineM, roundCoord, simplifyLine, type LonLat } from './geo';
 import type { TrailEdge, TrailGraph } from './graph';
@@ -17,8 +17,10 @@ export interface CandidateRoute {
   /** From the trailhead's vertex to the summit vertex. */
   coords: LonLat[];
   lengthM: number;
-  /** Distinct colours in order of first appearance from the trailhead. */
+  /** Colours actually followed, in order from the trailhead (no `none`, no adjacent repeats). */
   colors: PttkColor[];
+  /** The followed stretches with their length (rounded to 10 m), `none` for unmarked paths. */
+  legs: Leg[];
   /** Undirected edge key (see `edgeKey`) → length in metres. */
   edges: Map<string, number>;
 }
@@ -126,6 +128,132 @@ export function shortestPaths(graph: TrailGraph, source: string): ShortestPaths 
   return { dist, prev };
 }
 
+interface LegCost {
+  changes: number;
+  /** Length of steps that keep the colour of the previous step (more is better on a tie). */
+  keptM: number;
+}
+
+interface LegCell extends LegCost {
+  /** Colour chosen for the previous marked step. */
+  from: PttkColor | undefined;
+}
+
+const betterThan = (a: LegCost, b: LegCost): boolean =>
+  a.changes < b.changes || (a.changes === b.changes && a.keptM > b.keptM);
+
+/**
+ * Picks one colour per step, from the trailhead to the summit, with a Viterbi pass.
+ * The cost is the number of colour changes; on a tie the path with more length that keeps
+ * the previous step's colour wins, then the order of `PTTK_COLORS`. Unmarked steps
+ * (`colors: []`) become `none` legs and do not break the continuity of the colour around them.
+ * Adjacent steps of one colour are merged; lengths are rounded to 10 m.
+ */
+export function chooseLegs(steps: { colors: PttkColor[]; lengthM: number }[]): Leg[] {
+  const marked = steps.map((s, i) => ({ s, i })).filter(({ s }) => s.colors.length > 0);
+
+  // table[k] holds, per allowed colour of marked step k, the best way to reach it.
+  const table: Map<PttkColor, LegCell>[] = [];
+  marked.forEach(({ s }, k) => {
+    const cells = new Map<PttkColor, LegCell>();
+    const options = PTTK_COLORS.filter((c) => s.colors.includes(c));
+    for (const color of options) {
+      if (k === 0) {
+        cells.set(color, { changes: 0, keptM: 0, from: undefined });
+        continue;
+      }
+      let best: LegCell | undefined;
+      for (const [prevColor, prevCell] of table[k - 1]!) {
+        const same = prevColor === color;
+        const candidate: LegCell = {
+          changes: prevCell.changes + (same ? 0 : 1),
+          keptM: prevCell.keptM + (same ? s.lengthM : 0),
+          from: prevColor,
+        };
+        if (best === undefined || betterThan(candidate, best)) best = candidate;
+      }
+      cells.set(color, best!);
+    }
+    table.push(cells);
+  });
+
+  const chosen: PttkColor[] = new Array<PttkColor>(marked.length);
+  if (marked.length > 0) {
+    let end: PttkColor | undefined;
+    let endCell: LegCell | undefined;
+    for (const [color, cell] of table[marked.length - 1]!) {
+      if (endCell === undefined || betterThan(cell, endCell)) {
+        end = color;
+        endCell = cell;
+      }
+    }
+    let color = end!;
+    for (let k = marked.length - 1; k >= 0; k--) {
+      chosen[k] = color;
+      color = table[k]!.get(color)!.from!;
+    }
+  }
+
+  const legs: Leg[] = [];
+  let k = 0;
+  for (const s of steps) {
+    const color: LegColor = s.colors.length > 0 ? chosen[k++]! : 'none';
+    const last = legs.at(-1);
+    if (last?.color === color) last.lengthM += s.lengthM;
+    else legs.push({ color, lengthM: s.lengthM });
+  }
+  const rounded = absorbSlivers(legs).map((l) => ({ color: l.color, lengthM: Math.round(l.lengthM / 10) * 10 }));
+  // An unmarked gap of a few metres rounds to 0 m; drop it so the legs around it can merge.
+  return mergeAdjacent(rounded.filter((l) => l.lengthM > 0 || l.color !== 'none'));
+}
+
+/** Coloured legs shorter than this are junction slivers, not a trail anyone follows. */
+export const MIN_LEG_M = 100;
+
+function mergeAdjacent(legs: Leg[]): Leg[] {
+  const out: Leg[] = [];
+  for (const l of legs) {
+    const last = out.at(-1);
+    if (last?.color === l.color) last.lengthM += l.lengthM;
+    else out.push({ ...l });
+  }
+  return out;
+}
+
+/**
+ * Adds every coloured leg shorter than `MIN_LEG_M` to a coloured neighbour: the previous
+ * leg, or the next one when it is the first leg or follows an unmarked leg. Unmarked legs
+ * never absorb and are never absorbed; a sliver with only unmarked neighbours stays. Legs of
+ * one colour that become adjacent are merged. A route shorter than `MIN_LEG_M` is kept as is.
+ */
+function absorbSlivers(input: Leg[]): Leg[] {
+  if (input.reduce((sum, l) => sum + l.lengthM, 0) < MIN_LEG_M) return input;
+  let legs = mergeAdjacent(input);
+  for (;;) {
+    const i = legs.findIndex((l, j) => {
+      if (l.color === 'none' || l.lengthM >= MIN_LEG_M) return false;
+      return (legs[j - 1] !== undefined && legs[j - 1]!.color !== 'none') ||
+        (legs[j + 1] !== undefined && legs[j + 1]!.color !== 'none');
+    });
+    if (i === -1) return legs;
+    const prev = legs[i - 1];
+    const target = prev !== undefined && prev.color !== 'none' ? i - 1 : i + 1;
+    legs = legs.map((l) => ({ ...l }));
+    legs[target]!.lengthM += legs[i]!.lengthM;
+    legs.splice(i, 1);
+    legs = mergeAdjacent(legs);
+  }
+}
+
+/** Colours of the legs in order, without `none` and without adjacent repeats. */
+function legColors(legs: Leg[]): PttkColor[] {
+  const colors: PttkColor[] = [];
+  for (const { color } of legs) {
+    if (color !== 'none' && colors.at(-1) !== color) colors.push(color);
+  }
+  return colors;
+}
+
 /**
  * One candidate per trailhead: the shortest path from the trailhead to the summit,
  * kept when its length is within [minLenM, maxLenM] (defaults 1 km and 20 km).
@@ -148,24 +276,19 @@ export function candidateRoutes(
 
     // The prev chain from the trailhead leads towards the summit (the Dijkstra source).
     const coords: LonLat[] = [graph.vertices.get(trailhead.vertex)!];
-    const colors: PttkColor[] = [];
-    const seen = new Set<PttkColor>();
+    const steps: { colors: PttkColor[]; lengthM: number }[] = [];
     const edges = new Map<string, number>();
     let v = trailhead.vertex;
     while (v !== summitVertex) {
       const step = prev.get(v)!;
-      for (const c of step.edge.colors) {
-        if (!seen.has(c)) {
-          seen.add(c);
-          colors.push(c);
-        }
-      }
+      steps.push({ colors: step.edge.colors, lengthM: step.edge.lengthM });
       const key = edgeKey(step.from, v, step.edge.wayId);
       edges.set(key, (edges.get(key) ?? 0) + step.edge.lengthM);
       v = step.from;
       coords.push(graph.vertices.get(v)!);
     }
-    out.push({ trailhead, coords, lengthM, colors, edges });
+    const legs = chooseLegs(steps);
+    out.push({ trailhead, coords, lengthM, colors: legColors(legs), legs, edges });
   }
   return out;
 }
@@ -196,9 +319,9 @@ const startOf = (r: CandidateRoute): LonLat => [r.trailhead.lon, r.trailhead.lat
  * selected start and at most `maxOverlap` of its length is shared with any selected route.
  */
 export function selectRoutes(routes: EnrichedRoute[], opts: SelectRoutesOptions = {}): EnrichedRoute[] {
-  const maxCount = opts.maxCount ?? 3;
-  const minStartSeparationM = opts.minStartSeparationM ?? 2000;
-  const maxOverlap = opts.maxOverlap ?? 0.5;
+  const maxCount = opts.maxCount ?? 20;
+  const minStartSeparationM = opts.minStartSeparationM ?? 1000;
+  const maxOverlap = opts.maxOverlap ?? 0.8;
 
   const ranked = [...routes].sort(
     (a, b) =>
@@ -222,7 +345,7 @@ export function selectRoutes(routes: EnrichedRoute[], opts: SelectRoutesOptions 
  * Converts a selected route to the shared schema: simplified (Douglas-Peucker, 5 m)
  * and rounded geometry, each point keeping the height of its nearest `coords3d` point.
  */
-export function toRoute(peakId: string, r: EnrichedRoute, peakName: string): Route {
+export function toRoute(peakId: string, r: EnrichedRoute): Route {
   const flat = r.coords3d.map((p): LonLat => [p[0], p[1]]);
   const simplified = simplifyLine(flat, SIMPLIFY_TOLERANCE_M);
 
@@ -246,7 +369,7 @@ export function toRoute(peakId: string, r: EnrichedRoute, peakName: string): Rou
   const { trailhead } = r;
   return {
     id: `${peakId}--${trailhead.id}`,
-    name: `${trailhead.name} → ${peakName}`,
+    name: `Z ${trailhead.name}`,
     trailhead: {
       name: trailhead.name,
       lat: roundCoord(trailhead.lat),
@@ -258,6 +381,7 @@ export function toRoute(peakId: string, r: EnrichedRoute, peakName: string): Rou
     descentM: r.descentM,
     durationMin: r.durationMin,
     colors: [...r.colors],
+    legs: r.legs.map((l) => ({ ...l })),
     geometry: { type: 'LineString', coordinates },
     profile: r.profile.map(([d, h]): [number, number] => [d, h]),
   };

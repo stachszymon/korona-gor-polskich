@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { PeakDetailSchema, PeaksIndexSchema } from './schema';
+import { MountainAreaSchema, PeakDetailSchema, PeaksIndexSchema } from './schema';
 
 /**
  * Consistency of the generated, committed data in `public/data/` (the output of
@@ -25,6 +25,10 @@ const peakFiles: Record<string, unknown> = Object.fromEntries(
 );
 
 const KGP_PEAK_COUNT = 28;
+/** Leg lengths must add up to the route distance within this fraction... */
+const LEG_LENGTH_TOLERANCE = 0.02;
+/** ...plus half the 100 m step `distanceKm` is rounded to (a 1.86 km route shows 1.9 km). */
+const DISTANCE_ROUNDING_M = 50;
 /** The last point of a route must lie this close to its summit. */
 const SUMMIT_TOLERANCE_M = 150;
 
@@ -38,6 +42,8 @@ function distanceM(a: [number, number], b: [number, number]): number {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(dLon / 2) ** 2;
   return 2 * 6_371_008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
+
+const areaFile = join(DATA_DIR, 'mountain-area.json');
 
 const loadIndex = () => PeaksIndexSchema.parse(Object.values(indexFiles)[0]);
 
@@ -55,14 +61,14 @@ describe('generated data in public/data', () => {
     expect(new Set(index.peaks.map((p) => p.id)).size).toBe(KGP_PEAK_COUNT);
   });
 
-  it('every peak file passes PeakDetailSchema and has 1–3 routes', () => {
+  it('every peak file passes PeakDetailSchema and has 1–20 routes', () => {
     const index = loadIndex();
     const details = loadDetails();
     expect(details.map((d) => d.fileId).sort()).toEqual(index.peaks.map((p) => p.id).sort());
     for (const { fileId, detail } of details) {
       expect(detail.peakId, fileId).toBe(fileId);
       expect(detail.routes.length, fileId).toBeGreaterThanOrEqual(1);
-      expect(detail.routes.length, fileId).toBeLessThanOrEqual(3);
+      expect(detail.routes.length, fileId).toBeLessThanOrEqual(20);
       for (const route of detail.routes) {
         expect(route.id.startsWith(`${fileId}--`), route.id).toBe(true);
       }
@@ -103,5 +109,49 @@ describe('generated data in public/data', () => {
       expect(name, id).not.toMatch(/Mountain Resort/i);
     }
   });
-});
 
+  it('every route has legs that add up to its distance (within 2%) and whose colours are its colours', () => {
+    const routes = loadDetails().flatMap(({ detail }) => detail.routes);
+    expect(routes.length).toBeGreaterThanOrEqual(KGP_PEAK_COUNT);
+    for (const route of routes) {
+      expect(route.legs.length, route.id).toBeGreaterThanOrEqual(1);
+      expect(route.colors.length, route.id).toBeGreaterThanOrEqual(1);
+      for (const leg of route.legs) expect(leg.lengthM, `${route.id}: ${leg.color} leg`).toBeGreaterThan(0);
+      const legsM = route.legs.reduce((sum, leg) => sum + leg.lengthM, 0);
+      const routeM = route.distanceKm * 1000;
+      expect(Math.abs(legsM - routeM), `${route.id}: legs ${Math.round(legsM)} m, distance ${routeM} m`).toBeLessThanOrEqual(
+        LEG_LENGTH_TOLERANCE * routeM + DISTANCE_ROUNDING_M,
+      );
+      // `colors` are the marked legs' colours in order, an unmarked gap not repeating a colour.
+      const marked = route.legs
+        .map((leg) => leg.color)
+        .filter((color) => color !== 'none')
+        .filter((color, i, all) => i === 0 || color !== all[i - 1]);
+      expect(marked, route.id).toEqual(route.colors);
+      for (let i = 1; i < route.colors.length; i++) {
+        expect(route.colors[i], `${route.id}: ${route.colors.join(',')}`).not.toBe(route.colors[i - 1]);
+      }
+    }
+  });
+
+  it('every trail segment names its OSM relations, each with a colour', () => {
+    let segments = 0;
+    for (const { fileId, detail } of loadDetails()) {
+      for (const feature of detail.trails.features) {
+        expect(feature.properties.relations.length, fileId).toBeGreaterThanOrEqual(1);
+        for (const relation of feature.properties.relations) {
+          expect(relation.color, `${fileId}: relation ${relation.id}`).toBeDefined();
+        }
+        segments++;
+      }
+    }
+    expect(segments).toBeGreaterThanOrEqual(KGP_PEAK_COUNT);
+  });
+
+  it('mountain-area.json exists, passes MountainAreaSchema and has 2 polygons', () => {
+    expect(existsSync(areaFile)).toBe(true);
+    const area = MountainAreaSchema.parse(readJson(areaFile));
+    // One area from Wysoka Kopa to Tarnica, Łysica apart.
+    expect(area.areas.coordinates).toHaveLength(2);
+  });
+});

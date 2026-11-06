@@ -9,7 +9,14 @@
           "colors": [
             "red"
           ],
-          "name": "Główny Szlak Beskidzki"
+          "name": "Główny Szlak Beskidzki",
+          "relations": [
+            {
+              "id": 1000,
+              "name": "Główny Szlak Beskidzki",
+              "color": "red"
+            }
+          ]
         },
         "geometry": {
           "type": "LineString",
@@ -44,6 +51,16 @@
       "colors": [
         "red",
         "yellow"
+      ],
+      "legs": [
+        {
+          "color": "red",
+          "lengthM": 5200
+        },
+        {
+          "color": "yellow",
+          "lengthM": 2200
+        }
       ],
       "geometry": {
         "type": "LineString",
@@ -96,6 +113,12 @@
       "colors": [
         "green"
       ],
+      "legs": [
+        {
+          "color": "green",
+          "lengthM": 8100
+        }
+      ],
       "geometry": {
         "type": "LineString",
         "coordinates": [
@@ -146,6 +169,12 @@
       "durationMin": 215,
       "colors": [
         "blue"
+      ],
+      "legs": [
+        {
+          "color": "blue",
+          "lengthM": 9200
+        }
       ],
       "geometry": {
         "type": "LineString",

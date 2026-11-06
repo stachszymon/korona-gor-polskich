@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PeakDetailSchema, PeaksIndexSchema } from '../../src/data/schema';
+import { MountainAreaSchema, PeakDetailSchema, PeaksIndexSchema } from '../../src/data/schema';
+import { buildMountainArea } from '../src/area';
 import {
   buildAll,
   buildPeak,
@@ -17,6 +18,12 @@ import type { OverpassNode, OverpassRelation, OverpassResponse } from '../src/ov
 import type { RouteOverrides } from '../src/overrides';
 import type { PeakSource } from '../src/peaks';
 import { fakeTileFetcher } from './helpers/fake-dem';
+
+// Real implementation, except for the test that makes the area computation fail.
+vi.mock('../src/area', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/area')>();
+  return { ...original, buildMountainArea: vi.fn(original.buildMountainArea) };
+});
 
 const BABIA: PeakSource = {
   id: 'babia-gora',
@@ -97,7 +104,7 @@ function makeDeps(sources: PeakSource[], opts: MockOptions & { overrides?: Route
 }
 
 describe('buildPeak', () => {
-  it('buildPeak on Babia Góra fixture yields 1–3 routes that pass PeakDetailSchema and end within 150 m of the summit', async () => {
+  it('buildPeak on Babia Góra fixture yields 1–20 routes that pass PeakDetailSchema and end within 150 m of the summit', async () => {
     const { deps, overpass } = makeDeps([BABIA]);
 
     const { detail, report } = await buildPeak(BABIA, deps);
@@ -105,7 +112,7 @@ describe('buildPeak', () => {
     expect(PeakDetailSchema.safeParse(detail).success).toBe(true);
     expect(detail.peakId).toBe('babia-gora');
     expect(detail.routes.length).toBeGreaterThanOrEqual(1);
-    expect(detail.routes.length).toBeLessThanOrEqual(3);
+    expect(detail.routes.length).toBeLessThanOrEqual(20);
     for (const route of detail.routes) {
       const end = route.geometry.coordinates.at(-1)!;
       expect(haversineM([end[0], end[1]], [BABIA.lon, BABIA.lat])).toBeLessThanOrEqual(150);
@@ -175,6 +182,33 @@ describe('buildPeak', () => {
     expect(far).toBeDefined();
     const end = far!.geometry.coordinates.at(-1)!;
     expect(haversineM([end[0], end[1]], [BABIA.lon, BABIA.lat])).toBeGreaterThan(9_990);
+  });
+
+  it('display trail features carry relations through clipping', async () => {
+    // A long-distance trail running 30 km north from the summit: clipped, relations kept.
+    const longTrail: OverpassRelation = {
+      type: 'relation',
+      id: 99_000_001,
+      tags: { type: 'route', route: 'hiking', 'osmc:symbol': 'blue:white:blue_bar', name: 'Daleki szlak' },
+      members: [
+        {
+          type: 'way',
+          ref: 99_000_002,
+          role: '',
+          geometry: Array.from({ length: 31 }, (_, km) => ({ lat: BABIA.lat + km / 111.2, lon: BABIA.lon })),
+        },
+      ],
+    };
+    const { deps } = makeDeps([BABIA], { extraRelations: [longTrail] });
+    const { detail } = await buildPeak(BABIA, deps);
+
+    expect(detail.trails.features.length).toBeGreaterThan(0);
+    for (const f of detail.trails.features) {
+      expect(f.properties.relations.length).toBeGreaterThan(0);
+    }
+    const far = detail.trails.features.find((f) => f.properties.name === 'Daleki szlak');
+    expect(far?.properties.relations).toEqual([{ id: 99_000_001, name: 'Daleki szlak', color: 'blue' }]);
+    expect(far?.properties.colors).toEqual(['blue']);
   });
 
   it('reports skipped relations with their reason', async () => {
@@ -380,6 +414,35 @@ describe('buildAll', () => {
     expect(await readdir(work)).toEqual(['data']); // no .tmp or .old left behind
   });
 
+  it('writes mountain-area.json built from the peaks and routes of this build', async () => {
+    const { deps } = makeDeps([BABIA]);
+
+    const { ok } = await buildAll([BABIA], deps, outDir);
+
+    expect(ok).toBe(true);
+    const area = MountainAreaSchema.parse(JSON.parse(await readFile(join(outDir, 'mountain-area.json'), 'utf8')));
+    expect(area.areas.coordinates).toHaveLength(1);
+    const [west, south, east, north] = area.bounds;
+    expect(BABIA.lon).toBeGreaterThan(west);
+    expect(BABIA.lon).toBeLessThan(east);
+    expect(BABIA.lat).toBeGreaterThan(south);
+    expect(BABIA.lat).toBeLessThan(north);
+  });
+
+  it('fails the build and leaves existing outDir untouched when the mountain area cannot be built', async () => {
+    await seedOutDir();
+    const { deps } = makeDeps([BABIA]);
+    vi.mocked(buildMountainArea).mockImplementationOnce(() => {
+      throw new Error('union exploded');
+    });
+
+    const { ok, reports } = await buildAll([BABIA], deps, outDir);
+
+    expect(ok).toBe(false);
+    expect(reports.at(-1)!.errors).toEqual([expect.stringContaining('union exploded')]);
+    await expectOutDirUntouched();
+  });
+
   it('replaces an existing outDir completely and keeps the order of the source list', async () => {
     await seedOutDir();
     const second: PeakSource = { ...BABIA, id: 'babia-gora-bis', name: 'Babia Góra bis', osmNodeId: 7 };
@@ -484,13 +547,13 @@ describe('buildAll', () => {
     expect(logs.join('\n')).toMatch(/pilsko/);
   });
 
-  it('report lists skipped relations and size warning above 500000 bytes', async () => {
-    // Disconnected zigzag ways whose points survive 5 m simplification: 30 x 1000 points, about 600 kB.
+  it('report lists skipped relations and size warning above 1500000 bytes', async () => {
+    // Disconnected zigzag ways whose points survive 5 m simplification: 30 x 3000 points, about 1.8 MB.
     const zigzagWay = (ref: number) => ({
       type: 'way' as const,
       ref,
       role: '',
-      geometry: Array.from({ length: 1000 }, (_, i) => ({
+      geometry: Array.from({ length: 3000 }, (_, i) => ({
         // inside the 10 km radius (drawn trails are clipped to it)
         lat: 49.6 + i * 0.000005,
         lon: 19.6 + ref * 0.001 + (i % 2) * 0.0002,
@@ -509,14 +572,14 @@ describe('buildAll', () => {
     const report = reports[0]!;
     expect(ok).toBe(true); // a size warning does not fail the build
     expect(report.sizeBytes).toBeGreaterThan(MAX_PEAK_FILE_BYTES);
-    expect(MAX_PEAK_FILE_BYTES).toBe(500_000);
-    expect(report.warnings).toEqual([expect.stringContaining('500000')]);
+    expect(MAX_PEAK_FILE_BYTES).toBe(1_500_000);
+    expect(report.warnings).toEqual([expect.stringContaining('1500000')]);
     expect(report.skipped.map((s) => s.id)).toEqual([15482388, 19308791]);
     const text = formatReport([report]);
     expect(text).toContain('babia-gora');
     expect(text).toContain('15482388');
     expect(text).toContain('no-color');
-    expect(text).toContain('500000');
+    expect(text).toContain('1500000');
   });
 
   it('logs progress per peak', async () => {
