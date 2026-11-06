@@ -14,6 +14,10 @@ const h = vi.hoisted(() => {
     options: Record<string, unknown>;
     sources: Record<string, unknown> = {};
     layers: { spec: { id: string }; beforeId?: string }[] = [];
+    /** Filters set with `setFilter`, by layer id. */
+    filters: Record<string, unknown> = {};
+    /** Layout properties set with `setLayoutProperty`, as `layer.property`. */
+    layout: Record<string, unknown> = {};
     handlers: { type: string; layer?: string; fn: Handler }[] = [];
     data: Record<string, unknown> = {};
     paint: Record<string, unknown> = {};
@@ -43,13 +47,31 @@ const h = vi.hoisted(() => {
     addLayer(spec: { id: string }, beforeId?: string) {
       this.layers.push({ spec, beforeId });
     }
+    /** The style as the map would report it: the original layers with `setFilter` / `setLayoutProperty` applied. */
     getStyle() {
+      const base: { id: string; type: string; filter?: unknown; layout?: Record<string, unknown> }[] = [
+        { id: 'water', type: 'fill' },
+        { id: 'place', type: 'symbol' },
+        { id: 'label_city', type: 'symbol', filter: ['==', ['get', 'class'], 'city'] },
+        { id: 'label_village', type: 'symbol' },
+        { id: 'label_country_1', type: 'symbol', filter: ['==', ['get', 'class'], 'country'] },
+      ];
       return {
-        layers: [
-          { id: 'water', type: 'fill' },
-          { id: 'place', type: 'symbol' },
-        ],
+        layers: base.map((layer) => {
+          const visibility = this.layout[`${layer.id}.visibility`];
+          return {
+            ...layer,
+            ...(layer.id in this.filters ? { filter: this.filters[layer.id] } : {}),
+            ...(visibility === undefined ? {} : { layout: { ...layer.layout, visibility } }),
+          };
+        }),
       };
+    }
+    setFilter(layer: string, filter: unknown) {
+      this.filters[layer] = filter;
+    }
+    setLayoutProperty(layer: string, prop: string, value: unknown) {
+      this.layout[`${layer}.${prop}`] = value;
     }
     getCanvas() {
       return { style: {} as Record<string, string> };
@@ -233,6 +255,8 @@ describe('MapView', () => {
     expect(ids).toEqual([
       'contour-lines',
       'contour-labels',
+      'mountain-mask-fill',
+      'mountain-mask-outline',
       'trails',
       'route-selected-casing',
       'route-selected',
@@ -255,6 +279,63 @@ describe('MapView', () => {
       ],
       expect.objectContaining({ pitch: 50, duration: 0 }),
     );
+  });
+
+  it('dims everything outside the mountains: the mask source gets the outside polygon and the areas', async () => {
+    const { map } = await renderLoaded(baseProps());
+
+    expect(map.sources['mountain-mask']).toMatchObject({ type: 'geojson' });
+    const data = map.data['mountain-mask'] as { features: { properties: { kind: string }; geometry: { type: string; coordinates: unknown[] } }[] };
+    expect(data.features.map((f) => f.properties.kind)).toEqual(['outside', 'area', 'area']);
+    // Babia Gora and Rysy are 50 km apart, so one area each: the mask has the world ring and two holes.
+    expect(data.features[0]?.geometry.type).toBe('Polygon');
+    expect(data.features[0]?.geometry.coordinates).toHaveLength(3);
+  });
+
+  it('keeps the mask below the overlay layers and does not restrict panning', async () => {
+    const { map } = await renderLoaded(baseProps());
+    const ids = map.layers.map((l) => l.spec.id);
+    expect(ids.indexOf('mountain-mask-fill')).toBeGreaterThan(ids.indexOf('contour-labels'));
+    expect(ids.indexOf('mountain-mask-outline')).toBeLessThan(ids.indexOf('trails'));
+    expect(map.options).not.toHaveProperty('maxBounds');
+  });
+
+  it('hides country labels and limits city labels to the mountain areas on the live map', async () => {
+    const { map } = await renderLoaded(baseProps());
+
+    expect(map.layout['label_country_1.visibility']).toBe('none');
+    expect(map.layout).not.toHaveProperty(['label_city.visibility']);
+    const cityFilter = map.filters['label_city'] as unknown[];
+    expect(cityFilter[0]).toBe('all');
+    expect(cityFilter[1]).toEqual(['==', ['get', 'class'], 'city']);
+    expect(cityFilter[2]).toMatchObject(['within', { type: 'MultiPolygon' }]);
+    expect(map.filters['label_village']).toMatchObject(['within', { type: 'MultiPolygon' }]);
+    // The basemap is not reloaded for this.
+    expect(h.FakeMap.instances).toHaveLength(1);
+  });
+
+  it('recomputes the mask only when the peak set changes', async () => {
+    const { map, rerender } = await renderLoaded(baseProps());
+    const first = map.data['mountain-mask'];
+
+    rerender(<MapView {...baseProps({ progress: { peaks: { rysy: { status: 'planned' } } }, peaks: [...peaks] })} />);
+    expect(map.data['mountain-mask']).toBe(first);
+
+    const extra: PeakSummary = { id: 'tarnica', name: 'Tarnica', range: 'Bieszczady', elevation: 1346, lat: 49.0748, lon: 22.7263, routeCount: 0 };
+    rerender(<MapView {...baseProps({ peaks: [...peaks, extra] })} />);
+    expect(map.data['mountain-mask']).not.toBe(first);
+    expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(4);
+    // Applying again must not nest the within filter.
+    const cityFilter = map.filters['label_city'] as unknown[];
+    expect(cityFilter).toHaveLength(3);
+    expect(cityFilter[1]).toEqual(['==', ['get', 'class'], 'city']);
+  });
+
+  it('leaves the map unmasked while there are no peaks', async () => {
+    const { map } = await renderLoaded(baseProps({ peaks: [] }));
+    expect(map.data['mountain-mask']).toBeUndefined();
+    expect(map.layout).not.toHaveProperty(['label_country_1.visibility']);
+    expect(map.filters).toEqual({});
   });
 
   it('zooms out after fitting when the pitched view still clips the bounds', async () => {

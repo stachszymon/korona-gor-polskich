@@ -1,8 +1,18 @@
-import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
+import type { Feature, FeatureCollection, LineString, MultiPolygon, Point, Polygon } from 'geojson';
 import type mlcontour from 'maplibre-contour';
 import type { GeoJSONSourceSpecification, LayerSpecification, SourceSpecification } from 'maplibre-gl';
 import type { PeakSummary, Route, TrailFeature } from '../data/schema';
-import { CONTOUR_THRESHOLDS, PTTK_HEX, STATUS_HEX } from './config';
+import {
+  CONTOUR_THRESHOLDS,
+  MASK_FILL_HEX,
+  MASK_FILL_OPACITY,
+  MASK_OUTLINE_HEX,
+  MASK_OUTLINE_OPACITY,
+  MASK_OUTLINE_WIDTH,
+  PTTK_HEX,
+  STATUS_HEX,
+} from './config';
+import { outsideMask } from './mask';
 
 /** The part of the app's `Progress` the map needs; the real `Progress` is structurally compatible. */
 export type ProgressLike = { peaks: Record<string, { status: 'done' | 'planned' }> };
@@ -56,6 +66,50 @@ export function routeToGeoJSON(route: Route | null): FeatureCollection<LineStrin
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: route.geometry, properties: { id: route.id } }],
   };
+}
+
+export type MaskProperties = { kind: 'outside' | 'area' };
+
+/** The dimmed outside (world polygon with holes) and the mountain areas, in one collection. */
+export function maskToGeoJSON(areas: MultiPolygon): FeatureCollection<Polygon, MaskProperties> {
+  return {
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', geometry: outsideMask(areas), properties: { kind: 'outside' } },
+      ...areas.coordinates.map((coordinates): Feature<Polygon, MaskProperties> => ({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates },
+        properties: { kind: 'area' },
+      })),
+    ],
+  };
+}
+
+export const MASK_SOURCE_ID = 'mountain-mask';
+
+/** Empty until the peaks are known; the map fills it with `setData(maskToGeoJSON(areas))`. */
+export function maskSource(): GeoJSONSourceSpecification {
+  return { type: 'geojson', data: { type: 'FeatureCollection', features: [] } };
+}
+
+/** Veil over everything outside the mountains plus an outline along their edge. Goes above the basemap, below the overlay. */
+export function maskLayers(): LayerSpecification[] {
+  return [
+    {
+      id: 'mountain-mask-fill',
+      type: 'fill',
+      source: MASK_SOURCE_ID,
+      filter: ['==', ['get', 'kind'], 'outside'],
+      paint: { 'fill-color': MASK_FILL_HEX, 'fill-opacity': MASK_FILL_OPACITY },
+    },
+    {
+      id: 'mountain-mask-outline',
+      type: 'line',
+      source: MASK_SOURCE_ID,
+      filter: ['==', ['get', 'kind'], 'area'],
+      paint: { 'line-color': MASK_OUTLINE_HEX, 'line-width': MASK_OUTLINE_WIDTH, 'line-opacity': MASK_OUTLINE_OPACITY },
+    },
+  ];
 }
 
 export const OVERLAY_SOURCE_IDS = ['trails', 'route', 'peaks', 'cursor'] as const;

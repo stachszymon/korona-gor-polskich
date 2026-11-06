@@ -1,8 +1,13 @@
 import type { LayerSpecification } from 'maplibre-gl';
 import type { PeakSummary, Route, TrailFeature } from '../data/schema';
+import { mountainAreas, outsideMask } from './mask';
 import {
   contourLayers,
   contourSourceSpec,
+  MASK_SOURCE_ID,
+  maskLayers,
+  maskSource,
+  maskToGeoJSON,
   OVERLAY_SOURCE_IDS,
   overlayLayers,
   overlaySources,
@@ -175,5 +180,42 @@ describe('contours', () => {
     expect(layers.map((l) => l.id)).toEqual(['contour-lines', 'contour-labels']);
     expect(layers.every((l) => 'source-layer' in l && l['source-layer'] === 'contours')).toBe(true);
     expect(layers[1]?.layout).toMatchObject({ 'text-field': ['concat', ['get', 'ele'], ' m'] });
+  });
+});
+
+describe('mountain mask', () => {
+  const areas = mountainAreas([
+    { lat: 49.5, lon: 19.5 },
+    { lat: 50.7, lon: 15.7 },
+  ]);
+
+  it('puts the outside mask and the areas in one collection, told apart by `kind`', () => {
+    const fc = maskToGeoJSON(areas);
+    expect(fc.features.map((f) => f.properties)).toEqual([{ kind: 'outside' }, { kind: 'area' }, { kind: 'area' }]);
+    expect(fc.features[0]?.geometry).toEqual(outsideMask(areas));
+    expect(fc.features.slice(1).map((f) => f.geometry)).toEqual(areas.coordinates.map((coordinates) => ({ type: 'Polygon', coordinates })));
+  });
+
+  it('starts as an empty geojson source', () => {
+    expect(MASK_SOURCE_ID).toBe('mountain-mask');
+    expect(maskSource()).toEqual({ type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  });
+
+  it('dims the outside with a fill and outlines the areas', () => {
+    const layers = maskLayers();
+    expect(layers.map((l) => l.id)).toEqual(['mountain-mask-fill', 'mountain-mask-outline']);
+    const [fill, outline] = layers as [LayerSpecification, LayerSpecification];
+    expect(fill).toMatchObject({
+      type: 'fill',
+      source: 'mountain-mask',
+      filter: ['==', ['get', 'kind'], 'outside'],
+      paint: { 'fill-color': '#f4f1ea', 'fill-opacity': 0.72 },
+    });
+    expect(outline).toMatchObject({
+      type: 'line',
+      source: 'mountain-mask',
+      filter: ['==', ['get', 'kind'], 'area'],
+      paint: { 'line-color': '#8a7a5a', 'line-width': 1.2, 'line-opacity': 0.55 },
+    });
   });
 });
