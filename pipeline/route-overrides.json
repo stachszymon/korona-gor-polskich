@@ -1,210 +1,663 @@
 {
   "rysy": {
-    "exclude": ["lysa-polana", "strbske-pleso-31", "strbske-pleso-2"],
+    "exclude": [
+      "lysa-polana", "strbske-pleso-31", "strbske-pleso-2", "strbske-pleso-3", "strbske-pleso-30",
+      "strbske-pleso-25", "strbske-pleso", "parkovisko-sliezsky-dom"
+    ],
     "maxRoutes": 2,
     "rename": {
       "rysy--palenica-bialczanska": "Z Palenicy Białczańskiej przez Morskie Oko",
-      "rysy--strbske-pleso-19": "Ze Szczyrbskiego Jeziora przez Popradzki Staw"
+      "rysy--strbske-pleso-18": "Ze Szczyrbskiego Jeziora przez Popradzki Staw"
     }
   },
   "babia-gora": {
-    "exclude": ["za-grunikiem", "zawoja-krowiarki", "zawoja-krowiarki-2", "marki", "markowa"],
+    "exclude": [
+      "za-grunikiem", "zawoja-krowiarki", "zawoja-krowiarki-2", "marki", "markowa", "policzne-4",
+      "czatoza-2", "paluchowka", "zawoja-widly", "zaborz-2", "oravska-polhora-3", "mozna", "kwiatek",
+      "zawoja-czatoza", "zawoja-widly-3", "zaborz", "oravska-polhora-jednota", "zawoja-male-widelki",
+      "czatoza", "zawoja-widly-2", "rola-wegrzynow", "sklady", "magurka", "rola-obyrtalowa", "madziarowa-2",
+      "mylne-mlaki-2", "moniakowka", "sklady-2", "zawoja-czatoza-wyciagi", "pod-polana", "madziarowa-3",
+      "mylne-mlaki", "wilczna", "za-polana", "madziarowa", "bory-2", "ciocki", "bory", "hyrb", "za-potokiem",
+      "milosierna", "solanki", "widly", "solanki-2", "widly-2", "trzebuniaki", "welcza",
+      "zawoja-welcza-szkola", "zawoja-welcza-szkola-2", "zawoja-welcza-sklep"
+    ],
+    "maxRoutes": 13,
     "rename": {
       "babia-gora--parking-krowiarki": "Z Przełęczy Krowiarki",
       "babia-gora--stancowa": "Z Lipnicy Wielkiej (Stańcowa)",
-      "babia-gora--zawoja-markowa": "Z Zawoi Markowej przez Markowe Szczawiny"
+      "babia-gora--zawoja-markowa": "Z Zawoi Markowej przez Markowe Szczawiny",
+      "babia-gora--rybna": "Z Zawoi (Rybna)",
+      "babia-gora--slana-voda-5": "Ze Slanej Vody (Słowacja)",
+      "babia-gora--jasowka": "Ze Zubrzycy Górnej (Jasówka)",
+      "babia-gora--podryzowana": "Z Zawoi (Podryżowane)",
+      "babia-gora--policzne-3": "Z Zawoi (Policzne)",
+      "babia-gora--garajowka": "Z Kiczor (Garajówka)",
+      "babia-gora--pod-jalowcem": "Z Koszarawy Bystrej (Pod Jałowcem)",
+      "babia-gora--kluskowka": "Z Koszarawy Bystrej (Kluskówka)",
+      "babia-gora--zimna-dziura": "Z Zawoi (Zimna Dziura)",
+      "babia-gora--oravska-polhora-pila": "Z Oravskiej Polhory (Słowacja)"
     }
   },
   "tarnica": {
+    "exclude": ["berezki", "pod-rawkami"],
+    "maxRoutes": 4,
     "rename": {
       "tarnica--wolosate-wies": "Z Wołosatego",
       "tarnica--ustrzyki-gorne-10": "Z Ustrzyk Górnych",
-      "tarnica--muczne": "Z Mucznego"
+      "tarnica--muczne": "Z Mucznego",
+      "tarnica--pszczeliny-widelki-2": "Z Widełek"
     }
   },
   "turbacz": {
-    "exclude": ["koszary-2"],
+    "exclude": [
+      "koszary-2", "nizni-zarebek", "rusnaki", "lopuszna-remiza", "lopuszna-os-zarybiania",
+      "poreba-wielka-rusnaki-2", "lopuszna-osrodek-zarybieniowy", "borek-2",
+      "lopuszna-osrodek-zarybieniowy-2", "borek", "lopuszna-sklep-2", "poreba-wielka-rusnaki",
+      "lopuszna-sklep", "ruszonki", "lopuszna", "klosy", "tramy-2", "starmachy", "tramy",
+      "poreba-wielka-szkola-2", "poreba-wielka-szkola", "liberdy", "stroze", "poreba-wielka"
+    ],
+    "maxRoutes": 17,
     "rename": {
       "turbacz--wyzni-zarebek": "Z Łopusznej (Wyżni Zarębek)",
       "turbacz--pod-gora-7": "Z Waksmundu (Pod Górą)",
-      "turbacz--hucisko": "Z Koninek (Poręba Wielka)"
+      "turbacz--hucisko": "Z Koninek (Poręba Wielka)",
+      "turbacz--jedrasowka": "Z Obidowej (Jędrasówka)",
+      "turbacz--gazdy": "Z Nowego Targu (Kowaniec)",
+      "turbacz--koszary": "Z Łopusznej (Koszary)",
+      "turbacz--forendowki": "Z Przełęczy Knurowskiej",
+      "turbacz--ochotnica-gorna-bartoszowka": "Z Ochotnicy Górnej (Bartoszówka)",
+      "turbacz--nowina": "Z Poręby Wielkiej (Nowina)",
+      "turbacz--koszary-harklowskie": "Z Harklowej (Koszary Harklowskie)",
+      "turbacz--wyrobisko": "Z Koniny (Wyrobisko)",
+      "turbacz--natanki": "Z Koniny (Natanki)",
+      "turbacz--zapaly": "Z Poręby Wielkiej (Zapały)",
+      "turbacz--przy-strudze": "Z Ostrowska",
+      "turbacz--bialonie": "Z Poręby Wielkiej (Chlipały)",
+      "turbacz--bialka-2": "Z Klikuszowej (Białka)",
+      "turbacz--fudalowka": "Z Olszówki (Fudalówka)"
     }
   },
   "mogielica": {
+    "exclude": [
+      "bukowka", "do-turonia", "koprowina", "dzielec-2", "bukowina-2", "karczowka-2", "florkowka", "roztoka",
+      "bukowina", "wierchy", "dzielec", "do-artysty", "wierchy-2", "do-tracza", "zalesianka", "do-tracza-2",
+      "zalas", "szlagi", "piechotowka", "pod-kope", "walkowka", "walkowka-2", "ryze", "giemziki-gorne",
+      "pachuty", "brzozki", "karczowka", "giemziki-dolne", "piaski", "przystop", "plebanskie", "slazykowka",
+      "przystop-2", "mlynczyska-ostra"
+    ],
+    "maxRoutes": 12,
     "rename": {
       "mogielica--cyrla": "Z Półrzeczek (Cyrla)",
       "mogielica--do-sarysza": "Z Chyszówek (Do Sarysza)",
-      "mogielica--przychody": "Z Zalesia (Przychody)"
+      "mogielica--przychody": "Z Zalesia (Przychody)",
+      "mogielica--gronie": "Z Półrzeczek (Gronie)",
+      "mogielica--gron": "Z Zalesia (Groń)",
+      "mogielica--slopnice-zaswiercze": "Ze Słopnic (Zaświercze)",
+      "mogielica--biedowka": "Z Jurkowa (Biedówka)",
+      "mogielica--swistok": "Ze Szczawy (Świstok)",
+      "mogielica--biale-2": "Ze Szczawy (Białe)",
+      "mogielica--swistaki": "Z Półrzeczek (Świstaki)",
+      "mogielica--przyslopek-2": "Z Lubomierza (Przysłopek)",
+      "mogielica--brodkowka": "Z Zamieścia (Brodkówka)"
     }
   },
   "wysoka-kopa": {
-    "exclude": ["antoniow"],
+    "exclude": [
+      "antoniow", "szklarska-poreba-25", "szklarska-poreba-90", "szklarska-poreba-20", "harrachov-12",
+      "szklarska-poreba-28", "szklarska-poreba-21", "szklarska-poreba-30", "szklarska-poreba-23",
+      "szklarska-poreba-17", "szklarska-poreba-89", "szklarska-poreba-24", "szklarska-poreba-8",
+      "szklarska-poreba-37", "szklarska-poreba-6", "szklarska-poreba-36", "szklarska-poreba-32",
+      "szklarska-poreba-27", "szklarska-poreba-33", "szklarska-poreba-38", "szklarska-poreba-31",
+      "szklarska-poreba-34", "szklarska-poreba-22", "szklarska-poreba-69", "szklarska-poreba-18",
+      "szklarska-poreba-72", "szklarska-poreba-16", "szklarska-poreba-73", "szklarska-poreba-15",
+      "szklarska-poreba-50", "szklarska-poreba-14", "szklarska-poreba-42", "szklarska-poreba-10",
+      "szklarska-poreba-48", "szklarska-poreba-39", "szklarska-poreba-40", "szklarska-poreba-43",
+      "szklarska-poreba-44", "szklarska-poreba-47", "szklarska-poreba-iv-petla-koncowa",
+      "szklarska-poreba-huta-19", "szklarska-poreba-94", "grunwaldzka-wiejska", "centralni-parkoviste",
+      "parking-pod-gondola", "harrachov-novy-svet-na-myte", "kamieniec-nadbrzezna-tartak-2", "kotlina",
+      "radoszkow", "martinske-udoli-2", "nycovy-domky-2", "szklarska-poreba-huta-86", "szklarska-poreba-93",
+      "szklarska-poreba-12", "szklarska-poreba-45", "szklarska-poreba-52", "szklarska-poreba-11",
+      "szklarska-poreba-51", "parking-centralny-szrenica", "szklarska-poreba-gorna", "szklarska-poreba-49",
+      "szklarska-poreba-53", "szklarska-poreba-srednia", "szklarska-poreba-55", "parking-centrum-objazdowa",
+      "szklarska-poreba-54", "szklarska-poreba-65", "obroncow-pokoju-sp-5", "szklarska-poreba-67",
+      "szklarska-poreba-64", "szklarska-poreba-63", "szklarska-poreba-59", "szklarska-poreba-92",
+      "szklarska-poreba-76", "szklarska-poreba-77", "ul-11-listopada-zsoims", "szklarska-poreba-81",
+      "szklarska-poreba-87", "szklarska-poreba-96", "szklarska-poreba-41", "szklarska-poreba-46",
+      "szklarska-poreba-99", "szklarska-poreba-91", "ski-bus", "szklarska-poreba-88",
+      "szklarska-poreba-parking-szklarka-2", "szklarska-poreba-parking-szklarka", "szklarska-poreba-100"
+    ],
+    "maxRoutes": 8,
     "addTrailhead": [{"name": "Rozdroże Izerskie", "lat": 50.86507, "lon": 15.44727}],
     "rename": {
       "wysoka-kopa--jakuszyce-9": "Z Jakuszyc",
       "wysoka-kopa--rozdroze-izerskie": "Z Rozdroża Izerskiego",
-      "wysoka-kopa--szklarska-poreba-4": "Ze Szklarskiej Poręby"
+      "wysoka-kopa--szklarska-poreba-5": "Ze Szklarskiej Poręby",
+      "wysoka-kopa--szklarska-poreba-85": "Ze Szklarskiej Poręby (Zakręt Śmierci)",
+      "wysoka-kopa--harrachov-5": "Z Harrachova (Czechy)",
+      "wysoka-kopa--swieradow-zdroj-13": "Ze Świeradowa-Zdroju",
+      "wysoka-kopa--szklarska-poreba-dolna": "Ze Szklarskiej Poręby Dolnej (stacja kolejowa)",
+      "wysoka-kopa--jizerka-3": "Z Jizerki (Czechy)"
     },
     "summitPath": [
-      [15.42028, 50.85], [15.42006, 50.84996], [15.42007, 50.85041], [15.42011, 50.85053],
-      [15.42005, 50.85092], [15.42009, 50.85097], [15.42008, 50.8511], [15.42028, 50.85127],
-      [15.42019, 50.85145], [15.42023, 50.85153], [15.42047, 50.85166], [15.4209, 50.85211],
-      [15.42155, 50.85217], [15.42281, 50.85245], [15.42414, 50.85244], [15.4244156, 50.8525]
+      [15.42028,  50.85], [15.42006,  50.84996], [15.42007,  50.85041], [15.42011,  50.85053],
+      [15.42005,  50.85092], [15.42009,  50.85097], [15.42008,  50.8511], [15.42028,  50.85127],
+      [15.42019,  50.85145], [15.42023,  50.85153], [15.42047,  50.85166], [15.4209,  50.85211],
+      [15.42155,  50.85217], [15.42281,  50.85245], [15.42414,  50.85244], [15.4244156,  50.8525]
     ]
   },
   "orlica": {
-    "exclude": ["oserov", "destne-v-orlickych-horach-14", "destne-v-orlickych-horach-serlich", "destne-v-orlickych-horach-serlich-2", "destne-v-orlickych-horach-15"],
+    "exclude": [
+      "oserov", "destne-v-orlickych-horach-14", "destne-v-orlickych-horach-serlich",
+      "destne-v-orlickych-horach-serlich-2", "destne-v-orlickych-horach-15",
+      "olesnice-v-orlickych-horach-skiareal-2", "borova-u-jedle-2", "borova-3", "luzany-2", "plasnice",
+      "svaty-matous", "svaty-matous-4", "oserov-4", "destne-v-orlickych-horach-13", "rzy-odbocka-dlouhe",
+      "olesnice-v-orlickych-horach", "zakouti-hotel-orlice", "oserov-3",
+      "olesnice-v-orlickych-horach-skiareal", "destne-v-orlickych-horach-12", "oserov-5",
+      "destne-v-orlickych-horach-11", "polom-kaplicka", "zieleniec-i-zielony-garb",
+      "destne-v-orlickych-horach-10", "oserov-2", "dlouhe-2", "destne-v-orlickych-horach-9", "sediviny-4",
+      "oserov-14", "destne-v-orlickych-horach-8", "luzany", "duszniki-zdroj-zieleniec",
+      "jedlova-chata-kristyna", "oserov-15", "svaty-matous-2", "snezne-horalka", "dlouhe", "snezne-3",
+      "borova-u-jedle", "snezne-2", "svaty-matous-3"
+    ],
+    "maxRoutes": 10,
     "rename": {
-      "orlica--parking-zieleniec-stok": "Z Zieleńca",
       "orlica--olesnice-v-orlickych-horach-namesti": "Z Olešnic v Orlických horách (Czechy)",
-      "orlica--horni-sedlonov": "Z Horního Sedloňova (Czechy)"
+      "orlica--horni-sedlonov": "Z Horního Sedloňova (Czechy)",
+      "orlica--sedlonov-obu": "Ze Sedloňova (Czechy)",
+      "orlica--parking-zieleniec-stok": "Z Zieleńca",
+      "orlica--destne-v-orlickych-horach-4": "Z Deštného v Orlických horách (Czechy)",
+      "orlica--kociol-2": "Z Kotła",
+      "orlica--taszow": "Z Taszowa",
+      "orlica--jerzykowice-male-2": "Z Jerzykowic Małych",
+      "orlica--orlicke-zahori-bedrichovka": "Z Orlického Záhoří (Czechy)",
+      "orlica--lewin-klodzki-2": "Z Lewina Kłodzkiego"
     }
   },
   "wielka-sowa": {
+    "exclude": [
+      "sokolec-10", "walim", "rzeczka-gorna", "padole", "pieszyce-mostek", "wzgorze-wawel", "boreczna-2",
+      "sokolec-8", "sokolec-6", "sokolec-7", "pieszyce-mostek-2"
+    ],
+    "maxRoutes": 13,
     "rename": {
       "wielka-sowa--sowa-3": "Z Przełęczy Sokolej",
       "wielka-sowa--modlecin": "Z Modlęcina",
-      "wielka-sowa--kamionki-gorne": "Z Kamionek Górnych"
+      "wielka-sowa--sokolec-2": "Z Sokolca",
+      "wielka-sowa--parking-na-przeleczy-walimskiej": "Z Przełęczy Walimskiej",
+      "wielka-sowa--kamionki-gorne": "Z Kamionek Górnych",
+      "wielka-sowa--walim-3maja": "Z Walimia",
+      "wielka-sowa--lasocin": "Z Rościszowa (Lasocin)",
+      "wielka-sowa--kamionki-dolne-2": "Z Kamionek Dolnych",
+      "wielka-sowa--kamionki-gorne-2": "Z Kamionek",
+      "wielka-sowa--ludwikowice-klodzkie-ul-kasprowicza": "Z Ludwikowic Kłodzkich",
+      "wielka-sowa--sierpnica-3": "Z Sierpnicy",
+      "wielka-sowa--glinno-4": "Z Glinna",
+      "wielka-sowa--jugow-2": "Z Jugowa"
     }
   },
   "czupel": {
+    "exclude": [
+      "klimczaki", "porabki", "kepa", "miedzybrodzie-tartak-2", "szatany", "maslanki", "wilkowice-wilcza",
+      "sobusie-5", "na-gorze", "tresna-mala", "wilkowice", "miedzybrodzie-tartak", "hetnaly-4", "wolfy",
+      "hetnaly-3", "nowy-swiat", "lodygowice-2", "kubice-2", "hetnaly", "hetnaly-2", "maslanki-4",
+      "lodygowice-gmina", "maslanki-3", "kubice", "majdaki", "wajdy", "miedzybrodzie-ponikiew-2",
+      "maslanki-2", "huciska", "wilkowice-huciska"
+    ],
+    "maxRoutes": 9,
     "rename": {
       "czupel--magurka": "Z Magurki Wilkowickiej",
+      "czupel--koleby": "Z Łodygowic (Koleby)",
       "czupel--parking-na-przeleczy-przegibek": "Z Przełęczy Przegibek",
-      "czupel--koleby": "Z Łodygowic (Koleby)"
+      "czupel--miedzybrodzie-bialskie": "Z Międzybrodzia Bialskiego",
+      "czupel--laszczaki": "Z Czernichowa (Laszczaki)",
+      "czupel--kalwaria-2": "Z Wilkowic (Kalwaria)",
+      "czupel--straconka-lesniczowka-2": "Z Bielska-Białej (Straconka)",
+      "czupel--gron-3": "Z Wilkowic (Groń)",
+      "czupel--pieklo-132": "Z Międzybrodzia Bialskiego (Piekło)"
     }
   },
   "waligora": {
+    "exclude": [
+      "sokolowsko", "kamionka-11", "kamionka-62", "kamionka-63", "kamionka-64", "kamionka-40",
+      "bus-mieroszow-walbrzych-linia-15-zdkium", "bus-mieroszow-walbrzych-zdkium-linia-15-2",
+      "walbrzyska-glinik-stary", "unislaw-slaski-15", "grzmiaca-2", "lomnica", "kamionka-53", "radosna-2",
+      "lugowina-3", "bus-mieroszow-walbrzych-zdkium-linia-15", "lugowina-2", "unislaw-slaski-12",
+      "lomnica-sudecka-21", "lugowina", "unislaw-slaski-11", "lomnica-2", "kamionka-56", "radosna",
+      "kamionka-50", "kamionka-3", "niepodleglosci-szkolna", "lomnica-3", "kamionka-49", "kamionka-57",
+      "kamionka-45", "kamionka-42", "dw-glowny-koncowy", "kamionka-36", "grzmiaca-3", "kamionka-43",
+      "kamionka-59", "kamionka-60", "niepodleglosci-wylotowa", "kamionka-61",
+      "niepodleglosci-sklodowskiej-na-zadanie", "gluszyca", "mieroszow-przy-pomniku",
+      "niepodleglosci-swidnicka", "naprzeciwko-pomnika"
+    ],
+    "maxRoutes": 9,
     "rename": {
-      "waligora--trzy-strugi": "Z Łomnicy (Trzy Strugi)",
       "waligora--sokolowsko-10": "Z Sokołowska",
-      "waligora--rybnica-lesna-5": "Z Rybnicy Leśnej"
+      "waligora--rybnica-lesna-5": "Z Rybnicy Leśnej",
+      "waligora--trzy-strugi": "Z Łomnicy (Trzy Strugi)",
+      "waligora--unislaw-slaski-19": "Z Unisławia Śląskiego",
+      "waligora--rybnica-mala": "Z Rybnicy Małej",
+      "waligora--grzmiaca": "Z Grzmiącej",
+      "waligora--kowalowa": "Z Kowalowej",
+      "waligora--lesni-domky": "Z Vižňova (Lesní Domky, Czechy)",
+      "waligora--gluszyca-2": "Z Głuszycy"
     }
   },
   "rudawiec": {
+    "exclude": [
+      "bielice-4", "velke-vrbno", "bielice-6", "velke-vrbno-2", "bielice-5", "velke-vrbno-3",
+      "velke-vrbno-4", "velke-vrbno-5", "velke-vrbno-6", "stare-mesto-stribrnice-statek",
+      "stary-gieraltow-osp", "nyznerov", "skorosice-horni-skorosice-rozc", "cerny-kout", "stribrnice",
+      "stare-mesto-stribrnice-obchod"
+    ],
+    "maxRoutes": 14,
     "rename": {
       "rudawiec--bielice": "Z Bielic",
       "rudawiec--velke-vrbno-7": "Z Velkého Vrbna (Czechy)",
-      "rudawiec--petrikov-3": "Z Petříkova (Czechy)"
+      "rudawiec--petrikov": "Z Petříkova (Czechy)",
+      "rudawiec--kamienica-2": "Z Kamienicy",
+      "rudawiec--male-vrbno": "Z Malého Vrbna (Czechy)",
+      "rudawiec--ostruzna": "Z Ostružné (Czechy)",
+      "rudawiec--ramzova-8": "Z Ramzové (Czechy)",
+      "rudawiec--boleslawow-5": "Z Bolesławowa",
+      "rudawiec--nowa-morawa": "Z Nowej Morawy",
+      "rudawiec--stare-mesto-sidl-kvetna": "Ze Starého Města (Czechy)",
+      "rudawiec--stary-gieraltow-os-wyp": "Z Nowego Gierałtowa",
+      "rudawiec--lipova-lazne-konecna": "Z Lipové-lázní (Czechy)",
+      "rudawiec--hranicky": "Z Hraniček (Czechy)",
+      "rudawiec--goszow-3": "Z Goszowa"
     }
   },
   "kowadlo": {
+    "exclude": [
+      "uhelna-nove-vilemovice-konecna", "ostruzna", "skorosice-nyznerov-kaple", "male-vrbno", "kronfelzov",
+      "cerna-voda-lom", "ostruzna-4", "cerveny-dul", "ostruzna-5", "ostruzna-7", "ostruzna-6", "ostruzna-8",
+      "ostruzna-2", "ostruzna-3"
+    ],
+    "maxRoutes": 14,
     "rename": {
       "kowadlo--bielice-2": "Z Bielic",
+      "kowadlo--bielice-6": "Z Bielic (szlakiem niebieskim)",
       "kowadlo--hranicky": "Z Hraniček (Czechy)",
-      "kowadlo--velke-vrbno-7": "Z Velkého Vrbna (Czechy)"
+      "kowadlo--velke-vrbno-7": "Z Velkého Vrbna (Czechy)",
+      "kowadlo--nowy-gieraltow-2": "Z Nowego Gierałtowa",
+      "kowadlo--petrikov": "Z Petříkova (Czechy)",
+      "kowadlo--ramzova-3": "Z Ramzové (Czechy)",
+      "kowadlo--skorosice-horni-skorosice-rozc": "Ze Skorošic (Czechy)",
+      "kowadlo--lipova-lazne-konecna": "Z Lipové-lázní (Czechy)",
+      "kowadlo--cerny-kout": "Z Černého Koutu (Czechy)",
+      "kowadlo--nowa-morawa": "Z Nowej Morawy",
+      "kowadlo--stary-gieraltow-osp": "Ze Starego Gierałtowa",
+      "kowadlo--goszow-4": "Z Goszowa",
+      "kowadlo--nyznerov": "Z Nýznerova (Czechy)"
     }
   },
   "lubomir": {
+    "exclude": [
+      "galejowka-2", "brzanowka", "pcim-sucha-dzialy", "galejowka", "pod-niebo", "dzialy-4",
+      "weglowka-przelecz", "burkatowka", "dupakowka", "weglowka-przelecz-2", "dziadkowka", "ulmany-duze",
+      "galejowka-3", "male-ulmany", "wilkowka", "las", "weglowka", "jaski", "weglowka-2", "ciepciowka",
+      "weglowka-3", "kobielnik-wilkowka", "weglowka-4", "lipiska", "olbrowka", "wisniowa-i", "wisniowa-i-2",
+      "wicanty", "pawelkowka", "ciastonie", "bakowka", "cupiny", "zagroda-2", "maliny", "jurkowka", "pietry",
+      "smiglowka", "gorniaki", "libiaszowka", "bania", "zawiszowka", "zarebowka", "wilki", "zablowka",
+      "lesniakowka", "grotowka", "mirkowka-2", "mirkowka", "kozakowka-2", "poddziele"
+    ],
+    "maxRoutes": 9,
     "rename": {
       "lubomir--labedne": "Z Węglówki (Łabędne)",
+      "lubomir--majdowka": "Z Kobielnika (Majdówka)",
+      "lubomir--weszkowka": "Z Węglówki (Weszkówka)",
       "lubomir--kudlacze-5": "Z Kudłaczy (Pcim)",
-      "lubomir--granice": "Z Lipnika (Granice)"
+      "lubomir--salowiowka": "Z Węglówki (Sałowiówka)",
+      "lubomir--granice-2": "Z Lipnika (Granice)",
+      "lubomir--katy-podlesie": "Z Lipnika (Kąty-Podlesie)",
+      "lubomir--wisniowa-2": "Z Wiśniowej",
+      "lubomir--wincentowka": "Z Poręby (Wincentówka)"
     }
   },
   "biskupia-kopa": {
+    "exclude": [
+      "zlate-hory-jednota", "jarnoltowek-ii-aleksandrowka", "zlate-hory-dolni-udoli-haj", "bolkowice-4",
+      "zlate-hory-3", "jarnoltowek-ii-aleksandrowka-2", "zlate-hory-samota-2", "pokrzywna-ii-cicha-dolina",
+      "gestwina", "jarnoltowek-i-olsza", "ondrejovice-dopravni-stredisko", "jarnoltowek-i-olsza-2",
+      "ondrejovice-3", "ondrejovice-restaurace", "pokrzywna-ii-cicha-dolina-2", "ondrejovice-restaurace-2",
+      "ondrejovice-zastavka", "ondrejovice-2", "ondrejovice", "podlesie-2"
+    ],
+    "maxRoutes": 11,
     "rename": {
       "biskupia-kopa--petrovice": "Z Petrovic (Czechy)",
+      "biskupia-kopa--petrovice-3": "Z Petrovic (szlakiem niebieskim, Czechy)",
       "biskupia-kopa--bolkowice": "Z Jarnołtówka (Bolkowice)",
-      "biskupia-kopa--zlate-hory-16": "Ze Zlatých Hor (Czechy)"
+      "biskupia-kopa--zlate-hory-16": "Ze Zlatých Hor (Czechy)",
+      "biskupia-kopa--skowronkow-2": "Z Jarnołtówka (Skowronków)",
+      "biskupia-kopa--zlate-hory": "Ze Zlatých Hor (stacja kolejowa, Czechy)",
+      "biskupia-kopa--pokrzywna-3": "Z Pokrzywnej",
+      "biskupia-kopa--konradow-straznica": "Z Konradowa",
+      "biskupia-kopa--horni-udoli-2": "Z Horního Údolí (Czechy)",
+      "biskupia-kopa--hermanovice-3": "Z Heřmanovic (Czechy)",
+      "biskupia-kopa--wieszczyna": "Z Wieszczyny"
     }
   },
   "skrzyczne": {
+    "exclude": [
+      "szczyrk-37", "szczyrk-6", "szczyrk-55", "szczyrk-10", "szczyrk-41", "szczyrk-5", "szczyrk-54",
+      "szczyrk-4", "szczyrk-53", "szczyrk-3", "szczyrk-52", "szczyrk-38", "szczyrk-2", "szczyrk-31",
+      "szczyrk", "szczyrk-30", "kepa-3", "szczyrk-nowy-kosciol-2", "szczyrk-bila", "szczyrk-skocznia-2",
+      "grabowa", "do-zrebu", "suchowianka", "szczyrk-nowy-kosciol", "szczyrk-26", "filipionka", "migdalow",
+      "szczyrk-34", "migdalow-2", "do-zrebu-2", "szczyrk-32", "szczyrk-51", "za-gora", "szczyrk-29",
+      "szczyrk-42", "szczyrk-skalite", "szczyrk-27", "szczyrk-skocznia", "szczyrk-25", "szczyrk-skalite-2",
+      "szczyrk-47", "migdalow-4", "buczkowice-2", "szczyrk-beskidek-2", "migdalow-3", "buczkowice-3",
+      "szczyrk-beskidek", "migdalow-5", "buczkowice-7", "szczyrk-49", "plac-mandyrow", "buczkowice-4",
+      "szczyrk-pod-stroma", "szczyrk-44", "szczyrk-33", "kalna", "szczyrk-36", "kalna-2", "szczyrk-28",
+      "kalna-3", "szczyrk-35", "poza-dzialem", "szczyrk-40", "szczyrk-39", "szczyrk-43", "szczyrk-45",
+      "szczyrk-50", "szczyrk-48", "szczyrk-46", "szczyrk-centrum", "szczyrk-centrum-2", "nad-kalonka",
+      "poza-dzialem-2", "lodygowice-pod-kalna", "nad-kalonka-2"
+    ],
+    "maxRoutes": 13,
     "rename": {
-      "skrzyczne--szczyrk-25": "Ze Szczyrku (spod kolei na Skrzyczne)",
+      "skrzyczne--szczyrk-7": "Ze Szczyrku (spod kolei na Skrzyczne)",
+      "skrzyczne--witkowska-2": "Ze Szczyrku (Suche, spod gondoli)",
       "skrzyczne--jaski-3": "Z Ostrego (Lipowa)",
-      "skrzyczne--witkowska-2": "Ze Szczyrku (Suche, spod gondoli)"
+      "skrzyczne--szczyrk-bialy-krzyz": "Z Przełęczy Salmopolskiej (Biały Krzyż)",
+      "skrzyczne--lukasne": "Z Łukaśnego",
+      "skrzyczne--godziszka-gorka": "Z Godziszki (Górka)",
+      "skrzyczne--migdalow-7": "Z Buczkowic (Migdałów)",
+      "skrzyczne--grabowa-7": "Ze Szczyrku (Solisko)",
+      "skrzyczne--nowe-laki": "Z Brennej (Nowe Łąki)",
+      "skrzyczne--do-jamy": "Z Mesznej (Do Jamy)",
+      "skrzyczne--nadmeszna": "Z Mesznej (Nadmeszna)",
+      "skrzyczne--mlaki": "Z Brennej (Bukowa)",
+      "skrzyczne--suchowianka-7": "Z Wisły (Czarne)"
     }
   },
   "lackowa": {
+    "exclude": [
+      "huta-wysowska", "roma-2", "muszynka-3", "kurov-obchvat", "gaboltov-2", "skwirtne", "tylicz-9", "roma",
+      "pulaskiego-szpital-wojskowy"
+    ],
+    "maxRoutes": 13,
     "rename": {
       "lackowa--izby": "Z Izb",
       "lackowa--ropki": "Z Ropek",
-      "lackowa--cigelka-2": "Z Cigeľki (Słowacja)"
+      "lackowa--cigelka-2": "Z Cigeľki (Słowacja)",
+      "lackowa--tylicz-7": "Z Tylicza",
+      "lackowa--wysowa-zdroj": "Z Wysowej-Zdroju",
+      "lackowa--wysowa-zdroj-nizna": "Z Wysowej-Zdroju (Niżna)",
+      "lackowa--blechnarka": "Z Blechnarki",
+      "lackowa--za-rzeka": "Z Hańczowej",
+      "lackowa--tylicz-roma-34b": "Z Tylicza (Roma)",
+      "lackowa--petrova": "Z Petrovej (Słowacja)",
+      "lackowa--vysny-tvarozec": "Z Vyšného Tvarožca (Słowacja)",
+      "lackowa--mochnaczka-nizna-3": "Z Mochnaczki Niżnej",
+      "lackowa--regietow": "Z Regietowa"
     }
   },
   "jagodna": {
+    "exclude": [
+      "neratov-6", "piaskowice", "lasowka", "rozanka", "niemojow-2", "dlugopole-gorne",
+      "bystrzya-klodzka-ul-nadbrzezna-nz", "mostowice-3", "neratov-4", "neratov-5", "neratov-3", "neratov",
+      "neratov-2"
+    ],
+    "maxRoutes": 12,
     "rename": {
       "jagodna--spalona-3": "Ze Spalonej",
       "jagodna--poniatow": "Z Poniatowa",
-      "jagodna--gniewoszow-ii": "Z Gniewoszowa"
+      "jagodna--gniewoszow": "Z Gniewoszowa (szlakiem żółtym)",
+      "jagodna--gniewoszow-i-kosciol": "Z Gniewoszowa (kościół)",
+      "jagodna--mloty-lesniczowka": "Z Młotów (Leśniczówka)",
+      "jagodna--mostowice-2": "Z Mostowic",
+      "jagodna--ricky-mezivrsi-2": "Z Říček v Orlických horách (Czechy)",
+      "jagodna--panske-pole-hanicka": "Z Haničky (Czechy)",
+      "jagodna--vrchni-orlice-2": "Z Vrchní Orlice (Czechy)",
+      "jagodna--ponikwa": "Z Ponikwy",
+      "jagodna--stara-bystrzyca-2": "Ze Starej Bystrzycy",
+      "jagodna--huta": "Z Huty"
     }
   },
   "radziejowa": {
+    "exclude": [
+      "kordowiec", "tromowa", "oblazy-ryterskie", "pod-jasionowa-3", "litmanova-otoc", "ostatki",
+      "tromowa-2", "padlowka", "kamienny-gron", "tromowa-3", "pod-jasionowa", "mlodow", "kordowiec-2",
+      "tromowa-4", "cyrchla-2", "podlubek", "swiniarki", "pod-jasionowa-2", "wielochowka"
+    ],
+    "maxRoutes": 15,
     "rename": {
+      "radziejowa--obidza-2": "Z Piwnicznej-Zdroju (Obidza)",
       "radziejowa--psiarka": "Z Młodowa (Psiarka)",
+      "radziejowa--kiczora": "Z Obłazów Ryterskich (Kiczora)",
+      "radziejowa--litmanova-5": "Z Litmanovej (Słowacja)",
       "radziejowa--krotka": "Z Obidzy (Krótka)",
-      "radziejowa--obidza-2": "Z Piwnicznej-Zdroju (Obidza)"
+      "radziejowa--jaworki-5": "Z Jaworek (Biała Woda)",
+      "radziejowa--lazy": "Z Piwnicznej-Zdroju (Łazy)",
+      "radziejowa--podoliska": "Z Przysietnicy (Podoliska)",
+      "radziejowa--czarna-mlaka": "Z Roztoki Ryterskiej (Czarna Młaka)",
+      "radziejowa--sopatowiec": "Z Obidzy (Sopatowiec)",
+      "radziejowa--limasy": "Z Rytra (Limasy)",
+      "radziejowa--mlodow-2": "Z Młodowa (stacja kolejowa)",
+      "radziejowa--piwniczna-zdroj-8": "Z Piwnicznej-Zdroju (rynek)",
+      "radziejowa--mikolaska": "Z Rytra (stacja kolejowa)",
+      "radziejowa--glucha-dolina": "Z Przysietnicy (Głucha Dolina)"
     }
   },
   "lysica": {
+    "exclude": [
+      "zagorze-drugie-4", "lazy-2", "podlesie-2", "zagorze-drugie-3", "pogorzele", "krajno-zagorze",
+      "wymyslona", "zagorze-drugie-2", "krajno-pierwsze-4", "lazy-5", "zagorze-drugie", "krajno-pierwsze-3",
+      "lazy-4", "krajno-pierwsze-2", "lazy-3", "krajno-pierwsze", "ameliowka-2", "ameliowka-3",
+      "ameliowka-4", "ameliowka", "machocice-kapitulne-ameliowka", "machocice-kapitulne-ameliowka-2"
+    ],
+    "maxRoutes": 7,
     "rename": {
       "lysica--swieta-katarzyna-4": "Ze Świętej Katarzyny",
-      "lysica--pogorzele": "Z Krajna (Pogorzele)",
-      "lysica--od-podlesia-4": "Z Kakonina"
+      "lysica--krajno-i-wym": "Z Krajna",
+      "lysica--od-podlesia-4": "Z Kakonina",
+      "lysica--bieliny": "Z Bielin",
+      "lysica--parcela-3": "Z Ciekot (Żeromszczyzna)",
+      "lysica--bodzentyn": "Z Bodzentyna",
+      "lysica--pod-pakula": "Z Huty Szklanej"
     }
   },
   "skalnik": {
+    "exclude": [
+      "pisarzowice-2", "gruszkow-3", "kowary-4", "pisarzowice-wdk", "kowary-wiejska-54-filce-ii",
+      "horni-mala-upa-6", "jezyny", "horni-mala-upa-5", "gruszkow-4", "kowary-dworzec-kolejowy-pkp",
+      "pisarzowice-wies", "gruszkow-2", "kowary-3", "kowary-wiejska-petla", "kowary", "ogorzelec",
+      "kowary-2", "kowary-podgorze-petla", "kowary-8", "kowary-9", "kowary-16", "kowary-jeleniogorska-2",
+      "kowary-jeleniogorska", "horni-mala-upa-4"
+    ],
+    "maxRoutes": 13,
     "rename": {
-      "skalnik--czarnow": "Z Czarnowa",
+      "skalnik--dolomity": "Z Czarnowa (Dolomity)",
+      "skalnik--czarnow-2": "Z Czarnowa",
       "skalnik--gruszkow": "Z Gruszkowa",
-      "skalnik--dolomity": "Z Czarnowa (Dolomity)"
+      "skalnik--leszczyniec-3": "Z Leszczyńca",
+      "skalnik--pisarzowice": "Z Pisarzowic",
+      "skalnik--kowary-wolnosci-srednie": "Z Kowar",
+      "skalnik--redziny": "Z Rędzin",
+      "skalnik--struznica-58": "Ze Strużnicy",
+      "skalnik--ogorzelec-3": "Z Przełęczy Kowarskiej",
+      "skalnik--szarocin": "Z Szarocina",
+      "skalnik--karpniki-cmentarz": "Z Karpnik",
+      "skalnik--bukowiec-7": "Z Bukowca",
+      "skalnik--raszow": "Z Raszowa"
     }
   },
   "sniezka": {
+    "exclude": [
+      "karpacz-76", "pec-pod-snezkou-14", "karpacz-38", "pec-pod-snezkou", "karpacz-55", "karpacz-31",
+      "pec-pod-snezkou-9", "karpacz-54", "karpacz-29", "pec-pod-snezkou-8", "karpacz-49", "karpacz-30",
+      "karpacz-51", "karpacz-52", "karpacz-48", "karpacz-53", "karpacz-47", "karpacz-50", "karpacz-46",
+      "karpacz-45", "karpacz-43", "karpacz-42", "karpacz-41", "karpacz-40", "horni-mala-upa-6", "mala-upa-3",
+      "karpacz-44", "horni-mala-upa-4", "dolni-lyseciny", "jeleni-boudy-dolni", "horni-mala-upa-5",
+      "karpacz-39", "karpacz-34", "karpacz-36", "karpacz-35"
+    ],
+    "maxRoutes": 14,
     "rename": {
-      "sniezka--karpacz-77": "Z Karpacza",
-      "sniezka--mala-upa-za-vetrem": "Z Przełęczy Okraj (Pomezní Boudy)",
-      "sniezka--lanovka-snezka": "Z Pecu pod Sněžkou (Czechy)"
+      "sniezka--mala-upa-za-vetrem": "Z Malé Úpy (Za Větrem, Czechy)",
+      "sniezka--lanovka-snezka": "Z Pecu pod Sněžkou (kolej linowa, Czechy)",
+      "sniezka--mala-upa-pomezni-boudy": "Z Przełęczy Okraj (Pomezní Boudy)",
+      "sniezka--karpacz-77": "Z Karpacza (szlakiem żółtym)",
+      "sniezka--pec-pod-snezkou-13": "Z Pecu pod Sněžkou (parking P3, Czechy)",
+      "sniezka--karpacz-24": "Z Karpacza (Biały Jar)",
+      "sniezka--pec-pod-snezkou-17": "Z Velké Úpy (Czechy)",
+      "sniezka--klinove-boudy": "Z Klínových Bud (Czechy)",
+      "sniezka--svaty-petr-5": "Spod Śpindlerówki (Czechy)",
+      "sniezka--mala-upa": "Z Malé Úpy (Spálený Mlýn, Czechy)",
+      "sniezka--karpacz-skalna-orlik": "Z Karpacza (szlakiem zielonym)",
+      "sniezka--horal-recepce": "Ze Szpindlerowego Młyna (Czechy)",
+      "sniezka--karpacz-6": "Z Karpacza (szlakiem niebieskim)",
+      "sniezka--velka-upa-odbocka-mala-upa": "Z Temného Dolu (Czechy)"
     }
   },
   "wysoka": {
+    "exclude": [
+      "szczawnica-17", "tromowa", "beresnik", "szczawnica-piaski-2", "litmanova-5", "vysne-ruzbachy-obec",
+      "stranany-dolny-koniec"
+    ],
+    "maxRoutes": 12,
     "rename": {
       "wysoka--homole": "Z Jaworek (Wąwóz Homole)",
-      "wysoka--lesnica-lesnicke-sedlo": "Z Lesnicy (Słowacja)",
-      "wysoka--kornaje": "Z Białej Wody (Kornaje)"
+      "wysoka--lesnica-lesnicke-sedlo": "Z Przełęczy Lesnickiej (Słowacja)",
+      "wysoka--szlachtowa-cmentarz-2": "Ze Szlachtowej",
+      "wysoka--kornaje": "Z Białej Wody (Kornaje)",
+      "wysoka--velky-lipnik-horny-koniec": "Z Veľkiego Lipnika (Słowacja)",
+      "wysoka--litmanova-otoc": "Z Litmanovej (Słowacja)",
+      "wysoka--obidza": "Z Obidzy",
+      "wysoka--kras-2": "Ze Szczawnicy (Kras)",
+      "wysoka--szczawnica-6": "Ze Szczawnicy (centrum)",
+      "wysoka--lesnica-materska-skola": "Z Lesnicy (Słowacja)",
+      "wysoka--vysne-ruzbachy-7": "Z Wyżnich Rużbachów (Słowacja)",
+      "wysoka--haligovce": "Z Haligoviec (Słowacja)"
     }
   },
   "szczeliniec-wielki": {
+    "exclude": [
+      "biale-skaly", "lezno-2", "ostra-gora", "gorne-wambierzyce", "lisia-przelecz", "radkow-6", "lezno",
+      "radkow-7", "radkow-5", "radkow-4", "machov-mlyn", "radkow-2", "radkow-9", "bozanov"
+    ],
+    "maxRoutes": 9,
     "rename": {
       "szczeliniec-wielki--karlow-5": "Z Karłowa",
-      "szczeliniec-wielki--pasterka": "Z Pasterki",
-      "szczeliniec-wielki--wodospady-posny": "Spod Wodospadów Pośny"
+      "szczeliniec-wielki--pasterka-3": "Z Pasterki",
+      "szczeliniec-wielki--wodospady-posny": "Spod Wodospadów Pośny",
+      "szczeliniec-wielki--parking-ksztaltna-laka": "Z Kształtnej Łąki",
+      "szczeliniec-wielki--bledne-skaly": "Spod Błędnych Skał",
+      "szczeliniec-wielki--machovska-lhota-4": "Z Machovské Lhoty (Czechy)",
+      "szczeliniec-wielki--bukowina-klodzka-4": "Z Bukowiny Kłodzkiej",
+      "szczeliniec-wielki--bozanov-2": "Z Božanova (Czechy)",
+      "szczeliniec-wielki--radkow-8": "Z Radkowa"
     }
   },
   "klodzka-gora": {
+    "exclude": [
+      "wojciechowice-sklep", "klodzko-23", "wojciechowice-nz", "klodzko-21", "klodzko-20", "boguszyn-2",
+      "klodzko-18", "boguszyn-iv", "klodzko-17", "klodzko-ksiazek-2", "klodzko-15", "boguszyn-iii",
+      "klodzko-14", "klodzko-ksiazek", "klodzko-ul-spoldzielcza-e-leclerc", "wojciechowice-3", "klodzko-13",
+      "wojciechowice-2", "klodzko-12", "wojciechowice", "klodzko-glowne", "klodzko-11", "klodzko-16",
+      "klodzko-10", "klodzko-9", "klodzko-4", "klodzko-8", "klodzko-5", "klodzko-7",
+      "klodzko-ul-objazdowa-6", "klodzko-2", "klodzko-3", "klodzko-6", "klodzko", "boguszyn",
+      "klodzko-ul-zamiejska-24", "klodzko-ul-szpitalna-zamiejska", "boguszyn-6"
+    ],
+    "maxRoutes": 9,
     "rename": {
       "klodzka-gora--podzamek": "Z Podzamka",
       "klodzka-gora--debowina": "Z Dębowiny",
-      "klodzka-gora--jozwikow-2": "Z Jóźwikowa"
+      "klodzka-gora--jozwikow-2": "Z Jóźwikowa",
+      "klodzka-gora--klodzko-61": "Z Kłodzka",
+      "klodzka-gora--jaszkowa-dolna-4": "Z Jaszkowej Dolnej",
+      "klodzka-gora--bardo-3": "Z Barda",
+      "klodzka-gora--chwalislaw-lesnictwo": "Z Chwalisławia",
+      "klodzka-gora--droszkow-3": "Z Droszkowa",
+      "klodzka-gora--janowiec": "Z Janowca"
     }
   },
   "skopiec": {
+    "exclude": [
+      "wojcieszow-7", "okrajnik", "radomierz-i-37", "okrajnik-2", "radomierz-3", "radomierz-v-33",
+      "radzimowice", "radomierz-2", "radomierz", "myslow", "myslow-2", "myslow-3", "myslow-41", "myslow-4",
+      "myslow-68"
+    ],
+    "maxRoutes": 7,
     "rename": {
       "skopiec--komarno-5": "Z Komarna",
+      "skopiec--komarno-kosciol": "Z Komarna (kościół)",
       "skopiec--wojcieszow": "Z Wojcieszowa",
-      "skopiec--radomierz-ii-72": "Z Radomierza"
+      "skopiec--radomierz-ii-72": "Z Radomierza",
+      "skopiec--kapela": "Z Przełęczy Kapela",
+      "skopiec--trzcinsko-2": "Z Trzcińska (stacja kolejowa)",
+      "skopiec--czestocin": "Z Kaczorowa (Częstocin)"
     }
   },
   "sleza": {
+    "exclude": [
+      "sobotka", "rogow-sobocki", "garncarsko-3", "rogow-sobocki-2", "sobotka-zachodnia", "rogow-sobocki-3",
+      "rogow-sobocki-4", "rogow-sobocki-5", "rogow-sobocki-6", "rogow-sobocki-7", "rogow-sobocki-8",
+      "rogow-sobocki-10", "rogow-sobocki-11", "rogow-sobocki-15", "rogow-sobocki-9", "strzelce",
+      "rogow-sobocki-14", "rogow-sobocki-12", "rogow-sobocki-13", "rogow-sobocki-16", "strzelce-swidnickie",
+      "rogow-sobocki-17", "garncarsko-2", "rogow-sobocki-18", "rogow-sobocki-19", "rogow-sobocki-20",
+      "garncarsko", "przemilow", "przemilow-3", "przemilow-2", "karolin"
+    ],
+    "maxRoutes": 11,
     "rename": {
       "sleza--tapadla": "Z Przełęczy Tąpadła",
       "sleza--sulistrowice": "Z Sulistrowic",
-      "sleza--sobotka-3": "Z Sobótki"
+      "sleza--sobotka-3": "Z Sobótki",
+      "sleza--strzegomiany": "Ze Strzegomian",
+      "sleza--chwalkow-4": "Z Chwałkowa",
+      "sleza--sobotka-11": "Z Sobótki (centrum)",
+      "sleza--bedkowice": "Z Będkowic",
+      "sleza--biala": "Z Białej",
+      "sleza--slupice": "Ze Słupic",
+      "sleza--jedrzejowice": "Z Jędrzejowic",
+      "sleza--oleszna": "Z Olesznej"
     }
   },
   "snieznik": {
+    "exclude": [
+      "kamienica-3", "miedzygorze-7", "kletno-2", "jaworek-gorny", "jodlow", "miedzygorze-6", "kletno",
+      "miedzygorze-petla-05", "miedzygorze-5", "miedzygorze-4", "miedzygorze-sniezik-03", "miedzygorze-3",
+      "miedzygorze-2", "miedzygorze-sniezik-93", "miedzygorze-8", "miedzygorze", "osiedle-lesne-miedzygorze",
+      "czarna-gora", "gora-igliczna", "szklary"
+    ],
+    "maxRoutes": 16,
     "rename": {
-      "snieznik--parkingi-pod-skocznia-2": "Z Międzygórza",
+      "snieznik--parkingi-pod-skocznia-2": "Z Międzygórza (parking pod skocznią)",
       "snieznik--janowa-gora-3": "Z Kletna (Janowa Góra)",
-      "snieznik--kamienica": "Z Kamienicy"
+      "snieznik--kamienica": "Z Kamienicy",
+      "snieznik--stare-mesto-stribrnice-obchod": "Ze Stříbrnic (Czechy)",
+      "snieznik--hyncice-pod-susinou-2": "Z Hynčic pod Sušinou (Czechy)",
+      "snieznik--jodlow-2": "Z Jodłowa",
+      "snieznik--velka-morava-konecna": "Z Velké Moravy (Czechy)",
+      "snieznik--biala-woda-3": "Z Białej Wody",
+      "snieznik--horni-morava-2": "Z Horní Moravy (Czechy)",
+      "snieznik--boleslawow": "Z Bolesławowa",
+      "snieznik--gora-igliczna-2": "Ze Szklar (Igliczna)",
+      "snieznik--stare-mesto-sidl-kvetna": "Ze Starého Města (Czechy)",
+      "snieznik--stara-morawa": "Ze Starej Morawy",
+      "snieznik--sklene-2": "Z Malé Moravy (Sklené, Czechy)",
+      "snieznik--nowa-morawa": "Z Nowej Morawy",
+      "snieznik--stronie-slaskie-6": "Ze Stronia Śląskiego"
     }
   },
   "chelmiec": {
+    "exclude": [
+      "boguszow-gorce-9", "szczawno-zdroj-3", "szczawno-zdroj-5", "szczawno-zdroj-6", "szczawno-zdroj-7",
+      "boguszow-gorce-8", "szczawno-zdroj-30", "szczawno-zdroj-2", "boguszow-gorce-7", "boguszow-gorce-6",
+      "boguszow-gorce-traugutta-2", "boguszow-gorce-traugutta", "boguszow-gorce-5", "szczawno-zdroj-11",
+      "wysockiego-stara-kopalnia", "szczawno-zdroj-35", "szczawno-zdroj-solicka", "szczawno-zdroj-4",
+      "wysockiego-stara-kopalnia-2", "szczawno-zdroj-36", "szczawno-zdroj-38", "boguszow-gorce-2",
+      "boguszow-gorce-zachod", "boguszow-gorce", "boguszow-gorce-4", "boguszow-gorce-3", "jablow",
+      "solicka-koncowy", "szczawno-zdroj-15", "szczawno-zdroj-13", "szczawno-zdroj-18", "szczawno-zdroj-17",
+      "szczawno-zdroj-8", "boguszow-gorce-koncowy", "jablow-4", "szczawno-zdroj-22", "szczawno-zdroj-44",
+      "szczawno-zdroj-48", "wysockiego-raciborska", "szczawno-zdroj-54", "szczawno-zdroj-55"
+    ],
+    "maxRoutes": 6,
     "rename": {
       "chelmiec--boguszow-gorce-14": "Z Boguszowa-Gorc (Boguszów)",
       "chelmiec--szczawno-zdroj": "Ze Szczawna-Zdroju",
-      "chelmiec--boguszow-gorce-26": "Z Boguszowa-Gorc (Gorce)"
+      "chelmiec--szczawno-zdroj-10": "Ze Szczawna-Zdroju (szlakiem żółtym)",
+      "chelmiec--boguszow-gorce-26": "Z Boguszowa-Gorc (Gorce)",
+      "chelmiec--boguszow-gorce-10": "Z Boguszowa-Gorc (stacja kolejowa)",
+      "chelmiec--lubomin-2": "Z Lubomina"
     }
   }
 }

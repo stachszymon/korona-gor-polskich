@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-15T10:59:55.593Z",
+  "generatedAt": "2026-11-06T20:43:25.793Z",
   "peaks": [
     {
       "id": "rysy",
@@ -17,7 +17,7 @@
       "elevation": 1725,
       "lat": 49.57302,
       "lon": 19.52933,
-      "routeCount": 3
+      "routeCount": 13
     },
     {
       "id": "sniezka",
@@ -26,7 +26,7 @@
       "elevation": 1603,
       "lat": 50.73603,
       "lon": 15.73961,
-      "routeCount": 3
+      "routeCount": 14
     },
     {
       "id": "snieznik",
@@ -35,7 +35,7 @@
       "elevation": 1425,
       "lat": 50.20741,
       "lon": 16.84742,
-      "routeCount": 3
+      "routeCount": 16
     },
     {
       "id": "tarnica",
@@ -44,7 +44,7 @@
       "elevation": 1346,
       "lat": 49.07477,
       "lon": 22.72632,
-      "routeCount": 3
+      "routeCount": 4
     },
     {
       "id": "turbacz",
@@ -53,7 +53,7 @@
       "elevation": 1310,
       "lat": 49.54282,
       "lon": 20.11138,
-      "routeCount": 3
+      "routeCount": 17
     },
     {
       "id": "radziejowa",
@@ -62,7 +62,7 @@
       "elevation": 1266,
       "lat": 49.4493,
       "lon": 20.60412,
-      "routeCount": 3
+      "routeCount": 15
     },
     {
       "id": "skrzyczne",
@@ -71,7 +71,7 @@
       "elevation": 1257,
       "lat": 49.68457,
       "lon": 19.03027,
-      "routeCount": 3
+      "routeCount": 13
     },
     {
       "id": "mogielica",
@@ -80,7 +80,7 @@
       "elevation": 1170,
       "lat": 49.65532,
       "lon": 20.27667,
-      "routeCount": 3
+      "routeCount": 12
     },
     {
       "id": "wysoka-kopa",
@@ -89,7 +89,7 @@
       "elevation": 1126,
       "lat": 50.85,
       "lon": 15.42028,
-      "routeCount": 3
+      "routeCount": 8
     },
     {
       "id": "rudawiec",
@@ -98,7 +98,7 @@
       "elevation": 1106,
       "lat": 50.2448,
       "lon": 16.97686,
-      "routeCount": 3
+      "routeCount": 14
     },
     {
       "id": "orlica",
@@ -107,7 +107,7 @@
       "elevation": 1084,
       "lat": 50.35325,
       "lon": 16.36063,
-      "routeCount": 3
+      "routeCount": 10
     },
     {
       "id": "wysoka",
@@ -116,7 +116,7 @@
       "elevation": 1050,
       "lat": 49.38026,
       "lon": 20.5555,
-      "routeCount": 3
+      "routeCount": 12
     },
     {
       "id": "wielka-sowa",
@@ -125,7 +125,7 @@
       "elevation": 1015,
       "lat": 50.68028,
       "lon": 16.48556,
-      "routeCount": 3
+      "routeCount": 13
     },
     {
       "id": "lackowa",
@@ -134,7 +134,7 @@
       "elevation": 997,
       "lat": 49.42655,
       "lon": 21.10248,
-      "routeCount": 3
+      "routeCount": 13
     },
     {
       "id": "kowadlo",
@@ -143,7 +143,7 @@
       "elevation": 989,
       "lat": 50.26443,
       "lon": 17.01322,
-      "routeCount": 3
+      "routeCount": 14
     },
     {
       "id": "jagodna",
@@ -152,7 +152,7 @@
       "elevation": 977,
       "lat": 50.25246,
       "lon": 16.56442,
-      "routeCount": 3
+      "routeCount": 12
     },
     {
       "id": "skalnik",
@@ -161,7 +161,7 @@
       "elevation": 945,
       "lat": 50.80848,
       "lon": 15.90006,
-      "routeCount": 3
+      "routeCount": 13
     },
     {
       "id": "czupel",
@@ -170,7 +170,7 @@
       "elevation": 930,
       "lat": 49.76788,
       "lon": 19.16103,
-      "routeCount": 3
+      "routeCount": 9
     },
     {
       "id": "waligora",
@@ -179,7 +179,7 @@
       "elevation": 936,
       "lat": 50.68082,
       "lon": 16.27809,
-      "routeCount": 3
+      "routeCount": 9
     },
     {
       "id": "szczeliniec-wielki",
@@ -188,7 +188,7 @@
       "elevation": 919,
       "lat": 50.48481,
       "lon": 16.34101,
-      "routeCount": 3
+      "routeCount": 9
     },
     {
       "id": "lubomir",
@@ -197,7 +197,7 @@
       "elevation": 904,
       "lat": 49.76688,
       "lon": 20.05967,
-      "routeCount": 3
+      "routeCount": 9
     },
     {
       "id": "biskupia-kopa",
@@ -206,7 +206,7 @@
       "elevation": 890,
       "lat": 50.25669,
       "lon": 17.42858,
-      "routeCount": 3
+      "routeCount": 11
     },
     {
       "id": "chelmiec",
@@ -215,7 +215,7 @@
       "elevation": 851,
       "lat": 50.77955,
       "lon": 16.21097,
-      "routeCount": 3
+      "routeCount": 6
     },
     {
       "id": "klodzka-gora",
@@ -224,7 +224,7 @@
       "elevation": 765,
       "lat": 50.45167,
       "lon": 16.75322,
-      "routeCount": 3
+      "routeCount": 9
     },
     {
       "id": "skopiec",
@@ -233,7 +233,7 @@
       "elevation": 724,
       "lat": 50.94393,
       "lon": 15.88471,
-      "routeCount": 3
+      "routeCount": 7
     },
     {
       "id": "sleza",
@@ -242,7 +242,7 @@
       "elevation": 718,
       "lat": 50.86409,
       "lon": 16.7075,
-      "routeCount": 3
+      "routeCount": 11
     },
     {
       "id": "lysica",
@@ -251,7 +251,7 @@
       "elevation": 614,
       "lat": 50.89162,
       "lon": 20.8966,
-      "routeCount": 3
+      "routeCount": 7
     }
   ]
 }
