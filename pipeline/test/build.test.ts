@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PeakDetailSchema, PeaksIndexSchema } from '../../src/data/schema';
+import { MountainAreaSchema, PeakDetailSchema, PeaksIndexSchema } from '../../src/data/schema';
+import { buildMountainArea } from '../src/area';
 import {
   buildAll,
   buildPeak,
@@ -17,6 +18,12 @@ import type { OverpassNode, OverpassRelation, OverpassResponse } from '../src/ov
 import type { RouteOverrides } from '../src/overrides';
 import type { PeakSource } from '../src/peaks';
 import { fakeTileFetcher } from './helpers/fake-dem';
+
+// Real implementation, except for the test that makes the area computation fail.
+vi.mock('../src/area', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/area')>();
+  return { ...original, buildMountainArea: vi.fn(original.buildMountainArea) };
+});
 
 const BABIA: PeakSource = {
   id: 'babia-gora',
@@ -405,6 +412,35 @@ describe('buildAll', () => {
     ]);
     expect(detail.routes.length).toBeGreaterThanOrEqual(1);
     expect(await readdir(work)).toEqual(['data']); // no .tmp or .old left behind
+  });
+
+  it('writes mountain-area.json built from the peaks and routes of this build', async () => {
+    const { deps } = makeDeps([BABIA]);
+
+    const { ok } = await buildAll([BABIA], deps, outDir);
+
+    expect(ok).toBe(true);
+    const area = MountainAreaSchema.parse(JSON.parse(await readFile(join(outDir, 'mountain-area.json'), 'utf8')));
+    expect(area.areas.coordinates).toHaveLength(1);
+    const [west, south, east, north] = area.bounds;
+    expect(BABIA.lon).toBeGreaterThan(west);
+    expect(BABIA.lon).toBeLessThan(east);
+    expect(BABIA.lat).toBeGreaterThan(south);
+    expect(BABIA.lat).toBeLessThan(north);
+  });
+
+  it('fails the build and leaves existing outDir untouched when the mountain area cannot be built', async () => {
+    await seedOutDir();
+    const { deps } = makeDeps([BABIA]);
+    vi.mocked(buildMountainArea).mockImplementationOnce(() => {
+      throw new Error('union exploded');
+    });
+
+    const { ok, reports } = await buildAll([BABIA], deps, outDir);
+
+    expect(ok).toBe(false);
+    expect(reports.at(-1)!.errors).toEqual([expect.stringContaining('union exploded')]);
+    await expectOutDirUntouched();
   });
 
   it('replaces an existing outDir completely and keeps the order of the source list', async () => {

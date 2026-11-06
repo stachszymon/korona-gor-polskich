@@ -7,6 +7,7 @@ import {
   type PeaksIndex,
   type TrailFeature,
 } from '../../src/data/schema';
+import { buildMountainArea, serializeMountainArea } from './area';
 import { createDemSampler, type FetchTile } from './elevation';
 import { clipLineToRadius, lineLengthM, roundCoord, simplifyLine, type LonLat } from './geo';
 import {
@@ -374,6 +375,20 @@ export async function buildAll(
   });
   const files = new Map<string, string>([['peaks.json', `${JSON.stringify(index, null, 2)}\n`]]);
   for (const [id, detail] of details) files.set(join('peaks', `${id}.json`), serializeDetail(detail));
+
+  // Computed from this build's data before anything is replaced, so a failure leaves `outDir` untouched.
+  try {
+    const area = buildMountainArea(
+      index.peaks,
+      [...details.values()].flatMap((d) => d.routes.map((r) => r.geometry.coordinates.map(([lon, lat]): LonLat => [lon, lat]))),
+    );
+    files.set('mountain-area.json', serializeMountainArea(area));
+  } catch (error) {
+    deps.log(`the mountain area could not be built, the output directory was not changed`);
+    const failed = emptyReport('mountain-area');
+    failed.errors.push(`mountain area: ${errorMessage(error)}`);
+    return { ok: false, reports: [...reports, failed] };
+  }
 
   await replaceDirectory(outDir, files);
   deps.log(`wrote ${files.size} files to ${outDir}`);

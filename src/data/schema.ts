@@ -100,3 +100,19 @@ export const PeakDetailSchema = z.object({
   routes: z.array(RouteSchema).max(20),
 });
 export type PeakDetail = z.infer<typeof PeakDetailSchema>;
+
+/** The mountains as one MultiPolygon (outer rings counter-clockwise) and the area the map may show. */
+export const MountainAreaSchema = z.object({
+  areas: z.object({
+    type: z.literal('MultiPolygon'),
+    coordinates: z.array(z.array(z.array(PositionSchema).min(4)).min(1)).min(1),
+  }),
+  /** `[west, south, east, north]` */
+  bounds: z
+    .tuple([longitude, latitude, longitude, latitude])
+    .refine(
+      ([west, south, east, north]) => west < east && south < north,
+      'bounds must have west < east and south < north',
+    ),
+});
+export type MountainArea = z.infer<typeof MountainAreaSchema>;

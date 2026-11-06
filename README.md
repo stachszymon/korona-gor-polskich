@@ -26,7 +26,10 @@ npm run e2e       # testy end-to-end (Playwright)
 
 1. pobiera z OpenStreetMap szczyty, szlaki PTTK i miejsca startu;
 2. wyznacza trasy;
-3. pobiera wysokości z AWS Terrain Tiles.
+3. pobiera wysokości z AWS Terrain Tiles;
+4. liczy obszar gór (`mountain-area.json`) z szczytów i tras.
+
+`npm run data:area` liczy sam obszar gór z istniejących plików, bez sieci.
 
 Katalog `public/data/` jest podmieniany dopiero wtedy, gdy wszystkie szczyty zbudują się poprawnie.
 

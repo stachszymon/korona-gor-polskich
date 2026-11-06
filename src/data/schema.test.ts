@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MountainAreaSchema,
   PeakDetailSchema,
   PeaksIndexSchema,
   PTTK_COLORS,
@@ -246,5 +247,39 @@ describe('constants', () => {
   it('exports the PTTK colors and trailhead kinds', () => {
     expect(PTTK_COLORS).toEqual(['red', 'blue', 'green', 'yellow', 'black']);
     expect(TRAILHEAD_KINDS).toEqual(['parking', 'station', 'bus_stop', 'place', 'manual']);
+  });
+});
+
+describe('MountainAreaSchema', () => {
+  const area = {
+    areas: {
+      type: 'MultiPolygon',
+      coordinates: [
+        [
+          [
+            [15, 50],
+            [16, 50],
+            [16, 51],
+            [15, 50],
+          ],
+        ],
+      ],
+    },
+    bounds: [14.7, 49.7, 16.3, 51.3],
+  };
+
+  it('accepts a multipolygon with four bounds', () => {
+    expect(MountainAreaSchema.safeParse(area).success).toBe(true);
+  });
+
+  it('rejects bounds with three numbers', () => {
+    expect(MountainAreaSchema.safeParse({ ...area, bounds: [14.7, 49.7, 16.3] }).success).toBe(false);
+  });
+
+  it('rejects a different geometry type and out-of-range positions', () => {
+    expect(MountainAreaSchema.safeParse({ ...area, areas: { type: 'Polygon', coordinates: [] } }).success).toBe(false);
+    expect(
+      MountainAreaSchema.safeParse({ ...area, areas: { type: 'MultiPolygon', coordinates: [[[[200, 50]]]] } }).success,
+    ).toBe(false);
   });
 });
