@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import indexFixture from '../test/fixtures/peaks.json';
 import babiaFixture from '../test/fixtures/peaks/babia-gora.json';
 import rysyFixture from '../test/fixtures/peaks/rysy.json';
-import { usePeakDetail, usePeaksIndex } from './usePeakDetail';
+import areaFixture from '../test/fixtures/mountain-area.json';
+import { useMountainArea, usePeakDetail, usePeaksIndex } from './usePeakDetail';
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 
@@ -118,5 +119,23 @@ describe('usePeaksIndex', () => {
     await waitFor(() => expect(result.current.status).toBe('error'));
     act(() => result.current.retry());
     await waitFor(() => expect(result.current.status).toBe('ready'));
+  });
+});
+
+describe('useMountainArea', () => {
+  it('loads the area', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(areaFixture));
+    const { result } = renderHook(() => useMountainArea(fetchFn));
+    expect(result.current.status).toBe('loading');
+    expect(result.current.area).toBeNull();
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.area?.bounds).toEqual([15, 48.6, 20.9, 51.3]);
+  });
+
+  it('reports an error and no area when the file cannot be loaded', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('nope', { status: 404 }));
+    const { result } = renderHook(() => useMountainArea(fetchFn));
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.area).toBeNull();
   });
 });

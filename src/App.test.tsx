@@ -5,15 +5,27 @@ import { PeakDetailSchema } from './data/schema';
 import { STORAGE_KEY } from './progress/progress';
 import babiaGora from './test/fixtures/peaks/babia-gora.json';
 import peaksIndex from './test/fixtures/peaks.json';
+import mountainArea from './test/fixtures/mountain-area.json';
 
 vi.mock('./map/MapView', () => ({
   MapView: (props: {
+    area: unknown;
     cursor: [number, number] | null;
+    hoveredRouteId: string | null;
     onPeakClick(id: string): void;
+    onRouteSelect(id: string): void;
     onTileError(): void;
     onMapError(): void;
   }) => (
-    <div data-testid="map" data-cursor={JSON.stringify(props.cursor)}>
+    <div
+      data-testid="map"
+      data-cursor={JSON.stringify(props.cursor)}
+      data-area={props.area === null ? 'none' : 'loaded'}
+      data-hovered-route={props.hoveredRouteId ?? 'none'}
+    >
+      <button type="button" onClick={() => props.onRouteSelect('babia-gora--korbielow')}>
+        route on map Korbielów
+      </button>
       <button type="button" onClick={() => props.onPeakClick('babia-gora')}>
         marker Babia Góra
       </button>
@@ -45,6 +57,7 @@ function makeFetch(detail: unknown = babiaGora): typeof fetch {
   return vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith('data/peaks.json')) return Promise.resolve(json(peaksIndex));
+    if (url.endsWith('data/mountain-area.json')) return Promise.resolve(json(mountainArea));
     if (url.endsWith('data/peaks/babia-gora.json')) return Promise.resolve(json(detail));
     return Promise.resolve(json({}, false));
   }) as unknown as typeof fetch;
@@ -188,6 +201,20 @@ describe('App', () => {
     expect(await screen.findByRole('article', { name: 'Babia Góra' })).toBeInTheDocument();
   });
 
+  it('gives the map the mountain area, and none (no message) when the file cannot be loaded', async () => {
+    const { unmount } = render(<App deps={{ fetchFn: makeFetch(), supportsWebGL: () => true }} />);
+    await waitFor(() => expect(screen.getByTestId('map')).toHaveAttribute('data-area', 'loaded'));
+    unmount();
+
+    const failing = vi.fn((input: RequestInfo | URL) =>
+      String(input).endsWith('data/mountain-area.json') ? Promise.resolve(json({}, false)) : (makeFetch() as typeof fetch)(input),
+    ) as unknown as typeof fetch;
+    render(<App deps={{ fetchFn: failing, supportsWebGL: () => true }} />);
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    expect(screen.getByTestId('map')).toHaveAttribute('data-area', 'none');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows a dismissible banner when map tiles fail', async () => {
     const { user } = renderApp({ supportsWebGL: () => true });
     await screen.findByRole('region', { name: 'Lista szczytów' });
@@ -196,6 +223,35 @@ describe('App', () => {
     const banner = screen.getByText('Część mapy nie wczytała się').closest('[role="status"]') as HTMLElement;
     await user.click(within(banner).getByRole('button', { name: 'Zamknij' }));
     expect(screen.queryByText('Część mapy nie wczytała się')).not.toBeInTheDocument();
+  });
+
+  it('clicking a route on the map selects it in the card and shows its profile', async () => {
+    const { user } = renderApp({ supportsWebGL: () => true });
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(screen.getByRole('button', { name: 'marker Babia Góra' }));
+    await screen.findByRole('button', { name: /Z Korbielowa/ });
+    expect(screen.getByRole('button', { name: /Z Korbielowa/ })).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(screen.getByRole('button', { name: 'route on map Korbielów' }));
+    expect(screen.getByRole('button', { name: /Z Korbielowa/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'hover profile' })).toBeInTheDocument();
+  });
+
+  it('hovering a route row tells the map to highlight it, and stops when the card closes', async () => {
+    const { user } = renderApp({ supportsWebGL: () => true });
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    await user.click(screen.getByRole('button', { name: 'marker Babia Góra' }));
+    const row = await screen.findByRole('button', { name: /Z Korbielowa/ });
+    expect(screen.getByTestId('map')).toHaveAttribute('data-hovered-route', 'none');
+
+    await user.hover(row);
+    expect(screen.getByTestId('map')).toHaveAttribute('data-hovered-route', 'babia-gora--korbielow');
+    await user.unhover(row);
+    expect(screen.getByTestId('map')).toHaveAttribute('data-hovered-route', 'none');
+
+    await user.hover(row);
+    await user.click(screen.getByRole('button', { name: 'Zamknij' }));
+    expect(screen.getByTestId('map')).toHaveAttribute('data-hovered-route', 'none');
   });
 
   it('shows the elevation profile for a selected route and moves the map cursor', async () => {

@@ -58,7 +58,7 @@ describe('toMountainStyle', () => {
     expect(liberty.layers.some((l) => l.id === 'hillshade')).toBe(false);
   });
 
-  it('inserts hillshade before the first symbol layer and sets terrain exaggeration 1.3', () => {
+  it('inserts hillshade before the first symbol layer and sets terrain exaggeration 1.8', () => {
     const style = toMountainStyle(liberty);
     const ids = style.layers.map((l) => l.id);
     const firstSymbol = liberty.layers.find((l) => l.type === 'symbol');
@@ -67,7 +67,7 @@ describe('toMountainStyle', () => {
     expect(layer(style, 'hillshade')).toMatchObject({
       type: 'hillshade',
       source: 'hillshade-dem',
-      paint: { 'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#473B24' },
+      paint: { 'hillshade-exaggeration': 0.7, 'hillshade-shadow-color': '#473B24' },
     });
     const demSpec = {
       type: 'raster-dem',
@@ -79,7 +79,7 @@ describe('toMountainStyle', () => {
     expect(style.sources['dem']).toEqual(demSpec);
     expect(style.sources['hillshade-dem']).toEqual(demSpec);
     expect(style.sources['openmaptiles']).toEqual(liberty.sources['openmaptiles']);
-    expect(style.terrain).toEqual({ source: 'dem', exaggeration: 1.3 });
+    expect(style.terrain).toEqual({ source: 'dem', exaggeration: 1.8 });
     expect(style.sky).toBeDefined();
     expect(style.sky?.['fog-color']).toBeDefined();
   });

@@ -1,7 +1,13 @@
 import type { Feature, FeatureCollection, LineString, MultiPolygon, Point, Polygon } from 'geojson';
 import type mlcontour from 'maplibre-contour';
-import type { GeoJSONSourceSpecification, LayerSpecification, SourceSpecification } from 'maplibre-gl';
-import type { PeakSummary, Route, TrailFeature } from '../data/schema';
+import type {
+  ExpressionFilterSpecification,
+  ExpressionSpecification,
+  GeoJSONSourceSpecification,
+  LayerSpecification,
+  SourceSpecification,
+} from 'maplibre-gl';
+import type { PeakSummary, PttkColor, Route, TrailFeature } from '../data/schema';
 import {
   CONTOUR_THRESHOLDS,
   MASK_FILL_HEX,
@@ -19,7 +25,11 @@ export type ProgressLike = { peaks: Record<string, { status: 'done' | 'planned' 
 
 export type PeakStatus = 'done' | 'planned' | 'todo';
 export type PeakProperties = { id: string; name: string; elevation: number; label: string; status: PeakStatus };
-export type TrailProperties = { color: string; offset: number };
+/**
+ * `relationKey` lists the OSM relations of this colour on the segment as `,id1,id2,`. MapLibre turns array
+ * properties into text, so filters match this string (`["in", ",<id>,", ["get", "relationKey"]]`), never an array.
+ */
+export type TrailProperties = { color: string; offset: number; relationKey: string };
 export type RouteProperties = { id: string };
 
 type DemSource = InstanceType<typeof mlcontour.DemSource>;
@@ -53,11 +63,50 @@ export function trailsForDisplay(trails: TrailFeature[]): FeatureCollection<Line
       features.push({
         type: 'Feature',
         geometry: trail.geometry,
-        properties: { color: PTTK_HEX[color], offset: (index - (colors.length - 1) / 2) * TRAIL_LINE_SPACING },
+        properties: {
+          color: PTTK_HEX[color],
+          offset: (index - (colors.length - 1) / 2) * TRAIL_LINE_SPACING,
+          relationKey: relationKeyOf(trail.properties.relations.filter((r) => r.color === color).map((r) => r.id)),
+        },
       });
     });
   }
   return { type: 'FeatureCollection', features };
+}
+
+/** `[10, 11]` → `",10,11,"`; the commas on both ends make a substring test match whole ids only. */
+export function relationKeyOf(ids: readonly number[]): string {
+  const unique = [...new Set(ids)];
+  return unique.length === 0 ? '' : `,${unique.join(',')},`;
+}
+
+/** The ids in one or several keys (`",10,11,"`, `",10,,20,"`), without duplicates. */
+export function relationIdsOf(key: string): number[] {
+  const ids = key
+    .split(',')
+    .filter((part) => part !== '')
+    .map(Number)
+    .filter((id) => Number.isInteger(id));
+  return [...new Set(ids)];
+}
+
+export type RelationInfo = { id: number; name?: string; color: PttkColor };
+
+/** The relations named by `relationKey`, each once, in the order of the key. Ids that are not in `trails` are skipped. */
+export function relationsAt(relationKey: string, trails: readonly TrailFeature[]): RelationInfo[] {
+  const known = new Map<number, RelationInfo>();
+  for (const trail of trails) {
+    for (const { id, name, color } of trail.properties.relations) {
+      if (!known.has(id)) known.set(id, name === undefined ? { id, color } : { id, name, color });
+    }
+  }
+  return relationIdsOf(relationKey).flatMap((id) => known.get(id) ?? []);
+}
+
+/** Filter of the `trails-highlight` layers: the features that carry any of these relations, or nothing for none. */
+export function trailHighlightFilter(ids: readonly number[]): ExpressionFilterSpecification {
+  if (ids.length === 0) return ['==', ['get', 'relationKey'], ''];
+  return ['any', ...ids.map((id) => ['in', `,${id},`, ['get', 'relationKey']] as ExpressionSpecification)];
 }
 
 export function routeToGeoJSON(route: Route | null): FeatureCollection<LineString, RouteProperties> {
@@ -66,6 +115,19 @@ export function routeToGeoJSON(route: Route | null): FeatureCollection<LineStrin
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: route.geometry, properties: { id: route.id } }],
   };
+}
+
+/** Every route of the peak in one collection, one feature each, told apart by `id`. */
+export function routesToGeoJSON(routes: readonly Route[]): FeatureCollection<LineString, RouteProperties> {
+  return {
+    type: 'FeatureCollection',
+    features: routes.map((route) => ({ type: 'Feature', geometry: route.geometry, properties: { id: route.id } })),
+  };
+}
+
+/** Filter of the `routes-hover` layer: shows the route with this id, or nothing for `null`. */
+export function routeHoverFilter(id: string | null): ['==', ['get', 'id'], string] {
+  return ['==', ['get', 'id'], id ?? ''];
 }
 
 export type MaskProperties = { kind: 'outside' | 'area' };
@@ -112,7 +174,7 @@ export function maskLayers(): LayerSpecification[] {
   ];
 }
 
-export const OVERLAY_SOURCE_IDS = ['trails', 'route', 'peaks', 'cursor'] as const;
+export const OVERLAY_SOURCE_IDS = ['trails', 'routes', 'route', 'peaks', 'cursor'] as const;
 
 /** Empty GeoJSON sources for the overlay layers; the map fills them with `setData`. */
 export function overlaySources(): Record<(typeof OVERLAY_SOURCE_IDS)[number], GeoJSONSourceSpecification> {
@@ -120,13 +182,20 @@ export function overlaySources(): Record<(typeof OVERLAY_SOURCE_IDS)[number], Ge
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
   });
-  return { trails: empty(), route: empty(), peaks: empty(), cursor: empty() };
+  return { trails: empty(), routes: empty(), route: empty(), peaks: empty(), cursor: empty() };
 }
 
 export const ROUTE_HEX = '#6a1b9a';
 
 export function overlayLayers(): LayerSpecification[] {
   return [
+    {
+      id: 'routes-all',
+      type: 'line',
+      source: 'routes',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ROUTE_HEX, 'line-width': 2, 'line-opacity': 0.55 },
+    },
     {
       id: 'trails',
       type: 'line',
@@ -138,6 +207,39 @@ export function overlayLayers(): LayerSpecification[] {
         'line-offset': ['get', 'offset'],
         'line-opacity': trailsOpacity(false),
       },
+    },
+    // The relations under the pointer, along their whole length: a white outline with the trail colour on top.
+    {
+      id: 'trails-highlight-casing',
+      type: 'line',
+      source: 'trails',
+      filter: trailHighlightFilter([]),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 7, 14, 10, 17, 13],
+        'line-offset': ['get', 'offset'],
+      },
+    },
+    {
+      id: 'trails-highlight',
+      type: 'line',
+      source: 'trails',
+      filter: trailHighlightFilter([]),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10],
+        'line-offset': ['get', 'offset'],
+      },
+    },
+    {
+      id: 'routes-hover',
+      type: 'line',
+      source: 'routes',
+      filter: routeHoverFilter(null),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ROUTE_HEX, 'line-width': 4, 'line-opacity': 1 },
     },
     {
       id: 'route-selected-casing',

@@ -2,8 +2,8 @@ import { featureFilter, validateStyleMin, type ICanonicalTileID } from '@maplibr
 import type { MultiPolygon } from 'geojson';
 import type { FilterSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
 import libertyLayers from '../test/fixtures/liberty-layers.json';
+import mountainAreaFixture from '../test/fixtures/mountain-area.json';
 import { labelRestrictions } from './labels';
-import { mountainAreas } from './mask';
 import { toMountainStyle } from './mountainStyle';
 import { contourLayers, overlayLayers } from './overlay';
 
@@ -21,10 +21,7 @@ function restrictLabelsToAreas(style: StyleSpecification, areas: MultiPolygon): 
   });
   return { ...style, layers };
 }
-const areas = mountainAreas([
-  { lat: 49.18, lon: 20.09 }, // Rysy
-  { lat: 50.74, lon: 15.74 }, // Sniezka
-]);
+const areas = mountainAreaFixture.areas as MultiPolygon;
 
 function layer(style: StyleSpecification, id: string) {
   const found = style.layers.find((l) => l.id === id);
@@ -76,7 +73,20 @@ describe('labelRestrictions applied to a style', () => {
   });
 
   it('is idempotent: restricting again does not nest the within filter', () => {
-    const areasAgain: MultiPolygon = mountainAreas([{ lat: 49.5, lon: 19.5 }]);
+    const areasAgain: MultiPolygon = {
+      type: 'MultiPolygon',
+      coordinates: [
+        [
+          [
+            [19, 49],
+            [20, 49],
+            [20, 50],
+            [19, 50],
+            [19, 49],
+          ],
+        ],
+      ],
+    };
     const twice = restrictLabelsToAreas(restricted, areasAgain);
     for (const id of [...PLACE_LABELS, ...WATER_LABELS, ...OTHER_LABELS]) {
       expect(filterOf(twice, id), id).toEqual(['all', filterOf(liberty, id), ['within', areasAgain]]);

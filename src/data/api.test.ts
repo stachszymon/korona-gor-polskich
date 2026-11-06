@@ -1,6 +1,7 @@
 import indexFixture from '../test/fixtures/peaks.json';
 import babiaFixture from '../test/fixtures/peaks/babia-gora.json';
-import { DataLoadError, loadPeakDetail, loadPeaksIndex } from './api';
+import areaFixture from '../test/fixtures/mountain-area.json';
+import { DataLoadError, loadMountainArea, loadPeakDetail, loadPeaksIndex } from './api';
 
 const json = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), { status: 200, ...init });
@@ -57,5 +58,26 @@ describe('loadPeakDetail', () => {
   it("schema mismatch → DataLoadError kind 'invalid'", async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json({ peakId: 'rysy' }));
     await expect(loadPeakDetail('rysy', fetchFn, '/')).rejects.toMatchObject({ kind: 'invalid' });
+  });
+});
+
+describe('loadMountainArea', () => {
+  it('loads and validates the area file', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(areaFixture));
+    const area = await loadMountainArea(fetchFn, '/base/');
+    expect(area.areas.coordinates).toHaveLength(2);
+    expect(area.bounds).toEqual([15, 48.6, 20.9, 51.3]);
+    expect(fetchFn).toHaveBeenCalledWith('/base/data/mountain-area.json');
+  });
+
+  it("schema mismatch → DataLoadError kind 'invalid'", async () => {
+    const bad = { ...areaFixture, bounds: [20, 50, 15, 49] };
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(bad));
+    await expect(loadMountainArea(fetchFn, '/')).rejects.toMatchObject({ name: 'DataLoadError', kind: 'invalid' });
+  });
+
+  it("missing file → DataLoadError kind 'network'", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('nope', { status: 404 }));
+    await expect(loadMountainArea(fetchFn, '/')).rejects.toMatchObject({ kind: 'network' });
   });
 });

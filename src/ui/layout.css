@@ -200,6 +200,13 @@ textarea {
   height: 40%;
 }
 
+/* A peak card needs more room than the list of peaks: header, status and the first routes. */
+@media (max-width: 767.98px) {
+  .app__body[data-panel='open'] .app__panel:has(.peak-card) {
+    height: 55%;
+  }
+}
+
 .app__panel-toggle {
   flex: 0 0 auto;
   width: 100%;
@@ -435,6 +442,13 @@ textarea {
 
 /* ---------- Routes ---------- */
 
+.route-list__count {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+/* Phone sheet: the whole panel scrolls, so the route list is not a second scroll area inside it. */
 .route-list {
   display: flex;
   flex-direction: column;
@@ -442,6 +456,36 @@ textarea {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Side panel: the card fills the panel and the route list scrolls inside it (a peak can have 17 routes). */
+@media (min-width: 768px) {
+  .app__panel-content:has(.peak-card) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .peak-card {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .peak-card__routes {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 12rem;
+  }
+
+  .route-list {
+    flex: 1 1 0;
+    min-height: 0;
+    padding-right: 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 .route-list__button {
@@ -475,6 +519,16 @@ textarea {
   border-radius: 2px;
 }
 
+.route-list__arrow {
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--color-muted);
+}
+
+.route-list__button[aria-pressed='true'] .route-list__arrow {
+  color: rgb(255 255 255 / 0.85);
+}
+
 .route-list__trailhead,
 .route-list__distance,
 .route-list__ascent,
@@ -501,6 +555,60 @@ textarea {
 
 .route-list__empty {
   color: var(--color-muted);
+}
+
+/* Route tooltip on the map: follows the pointer, so it must never catch it. */
+.route-tooltip,
+.route-tooltip .maplibregl-popup-content {
+  pointer-events: none;
+}
+
+.route-tooltip .maplibregl-popup-content {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  /* Wraps inside the popup's 320 px max width (set in MapView) instead of running out of the box. */
+  overflow-wrap: break-word;
+}
+
+/* Popup of a clicked trail: the relations on that segment, a colour bar and a name each. */
+.trail-popup .maplibregl-popup-content {
+  padding: 10px 28px 10px 12px;
+  color: var(--color-ink);
+  font-size: 0.85rem;
+}
+
+.trail-popup .maplibregl-popup-close-button {
+  /* A touch-sized target; the default is a few pixels wide. */
+  width: 28px;
+  height: 28px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.trail-popup__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trail-popup__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.trail-popup__item + .trail-popup__item {
+  margin-top: 6px;
+}
+
+.trail-popup__bar {
+  flex: none;
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
 /* ---------- Elevation profile ---------- */

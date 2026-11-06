@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PeakDetailSchema, type PeakSummary } from '../data/schema';
 import { downloadText } from '../lib/download';
@@ -27,6 +27,7 @@ function baseProps(overrides: Partial<PeakCardProps> = {}): PeakCardProps {
     entry: null,
     selectedRouteId: null,
     onSelectRoute: vi.fn(),
+    onHoverRoute: vi.fn(),
     onStatusChange: vi.fn(),
     onRetry: vi.fn(),
     onClose: vi.fn(),
@@ -57,12 +58,83 @@ describe('PeakCard', () => {
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(3);
     expect(screen.getByRole('button', { name: /Z Zawoi Markowej/ })).toBeInTheDocument();
-    const first = items.at(0) as HTMLElement;
+    const first = items.find((item) => within(item).queryByText('Start: Zawoja Markowa')) as HTMLElement;
     expect(within(first).getByText('Start: Zawoja Markowa')).toBeInTheDocument();
     expect(within(first).getByText('7,4 km na szczyt')).toBeInTheDocument();
     expect(within(first).getByText('↑ 980 m')).toBeInTheDocument();
     expect(within(first).getByText('ok. 3 h 30 min na szczyt (szacunkowo)')).toBeInTheDocument();
     expect(first.querySelectorAll('.route-list__stripe')).toHaveLength(2);
+  });
+
+  describe('route list', () => {
+    const withRoutes = (n: number) => ({
+      ...detail,
+      routes: Array.from({ length: n }, (_, i) => ({ ...detail.routes[0]!, id: `r-${i}`, name: `Trasa ${i}`, durationMin: 600 - i * 10 })),
+    });
+    const rowNames = () => screen.getAllByRole('listitem').map((item) => within(item).getByText(/^(Z |Trasa )/).textContent);
+
+    it('lists routes from the shortest to the longest time', () => {
+      renderCard();
+      expect(rowNames()).toEqual(['Z Zawoi Policznego', 'Z Zawoi Markowej', 'Z Korbielowa']);
+    });
+
+    it('does not mutate the data it sorts', () => {
+      const routes = [...detail.routes];
+      renderCard();
+      expect(detail.routes).toEqual(routes);
+    });
+
+    it.each([
+      [1, '1 trasa'],
+      [2, '2 trasy'],
+      [4, '4 trasy'],
+      [5, '5 tras'],
+      [12, '12 tras'],
+      [17, '17 tras'],
+    ])('counts %i routes as "%s"', (n, text) => {
+      renderCard({ detail: withRoutes(n) });
+      expect(screen.getByText(text)).toBeInTheDocument();
+    });
+
+    it('has no counter when there are no routes', () => {
+      renderCard({ detail: withRoutes(0) });
+      expect(screen.queryByText(/\d+ tras/)).not.toBeInTheDocument();
+    });
+
+    it('puts an arrow between colour stripes and names the colours for screen readers', () => {
+      renderCard();
+      const two = screen.getByRole('button', { name: /Z Zawoi Markowej/ });
+      const stripes = within(two).getByRole('img', { name: 'czerwony, potem żółty' });
+      expect(stripes.querySelectorAll('.route-list__stripe')).toHaveLength(2);
+      expect(stripes.querySelectorAll('.route-list__arrow')).toHaveLength(1);
+      expect(stripes.textContent).toBe('→');
+      const one = screen.getByRole('button', { name: /Z Zawoi Policznego/ });
+      expect(within(one).getByRole('img', { name: 'zielony' }).querySelectorAll('.route-list__arrow')).toHaveLength(0);
+    });
+
+    it('names three colours "a, potem b, potem c"', () => {
+      const routes = [{ ...detail.routes[0]!, colors: ['blue', 'black', 'green'] as const }];
+      renderCard({ detail: { ...detail, routes: routes.map((r) => ({ ...r, colors: [...r.colors] })) } });
+      expect(screen.getByRole('img', { name: 'niebieski, potem czarny, potem zielony' })).toBeInTheDocument();
+    });
+
+    it('reports the hovered row and clears it when the pointer leaves', async () => {
+      const props = renderCard();
+      const row = screen.getByRole('button', { name: /Z Korbielowa/ });
+      await userEvent.hover(row);
+      expect(props.onHoverRoute).toHaveBeenLastCalledWith('babia-gora--korbielow');
+      await userEvent.unhover(row);
+      expect(props.onHoverRoute).toHaveBeenLastCalledWith(null);
+    });
+
+    it('treats keyboard focus like hover', async () => {
+      const props = renderCard();
+      const row = screen.getByRole('button', { name: /Z Korbielowa/ });
+      act(() => row.focus());
+      expect(props.onHoverRoute).toHaveBeenLastCalledWith('babia-gora--korbielow');
+      act(() => row.blur());
+      expect(props.onHoverRoute).toHaveBeenLastCalledWith(null);
+    });
   });
 
   it('clicking a route calls onSelectRoute', async () => {

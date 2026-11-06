@@ -1,6 +1,8 @@
+import type { MultiPolygon } from 'geojson';
 import type { LayerSpecification } from 'maplibre-gl';
 import type { PeakSummary, Route, TrailFeature } from '../data/schema';
-import { mountainAreas, outsideMask } from './mask';
+import mountainAreaFixture from '../test/fixtures/mountain-area.json';
+import { outsideMask } from './mask';
 import {
   contourLayers,
   contourSourceSpec,
@@ -12,6 +14,12 @@ import {
   overlayLayers,
   overlaySources,
   peaksToGeoJSON,
+  relationIdsOf,
+  relationKeyOf,
+  relationsAt,
+  trailHighlightFilter,
+  routeHoverFilter,
+  routesToGeoJSON,
   routeToGeoJSON,
   trailsForDisplay,
   trailsOpacity,
@@ -65,8 +73,8 @@ describe('trailsForDisplay', () => {
     const fc = trailsForDisplay([trail(['red', 'yellow'])]);
     expect(fc.features).toHaveLength(2);
     expect(fc.features.map((f) => f.properties)).toEqual([
-      { color: '#d32f2f', offset: -1.5 },
-      { color: '#f9a825', offset: 1.5 },
+      { color: '#d32f2f', offset: -1.5, relationKey: ',1,' },
+      { color: '#f9a825', offset: 1.5, relationKey: ',2,' },
     ]);
     expect(fc.features[0]?.geometry).toEqual(fc.features[1]?.geometry);
   });
@@ -78,6 +86,93 @@ describe('trailsForDisplay', () => {
 
   it('ignores repeated colours on one segment', () => {
     expect(trailsForDisplay([trail(['red', 'red'])]).features).toHaveLength(1);
+  });
+
+  it('sets relationKey as a string with only the relations of that colour', () => {
+    const shared = sharedSegment();
+    const fc = trailsForDisplay([shared]);
+    expect(fc.features.map((f) => f.properties.relationKey)).toEqual([',10,11,', ',20,']);
+    for (const f of fc.features) expect(typeof f.properties.relationKey).toBe('string');
+  });
+
+  it('survives the string conversion MapLibre applies to array properties', () => {
+    // A key like ",10,11," is found by a plain substring test; ids that merely share digits are not.
+    const key = trailsForDisplay([sharedSegment()]).features[0]!.properties.relationKey;
+    expect(key.includes(',10,')).toBe(true);
+    expect(key.includes(',1,')).toBe(false);
+    expect(key.includes(',0,')).toBe(false);
+  });
+});
+
+/** One segment with two red relations (10 named, 11 unnamed) and one yellow (20). */
+function sharedSegment(): TrailFeature {
+  return {
+    type: 'Feature',
+    properties: {
+      colors: ['red', 'yellow'],
+      relations: [
+        { id: 10, name: 'Główny Szlak', color: 'red' },
+        { id: 11, color: 'red' },
+        { id: 20, name: 'Żółty do schroniska', color: 'yellow' },
+      ],
+    },
+    geometry: trail(['red']).geometry,
+  };
+}
+
+describe('relation keys', () => {
+  it('relationKeyOf and relationIdsOf round-trip and drop duplicates', () => {
+    expect(relationKeyOf([10, 11, 10])).toBe(',10,11,');
+    expect(relationIdsOf(',10,11,')).toEqual([10, 11]);
+    expect(relationIdsOf(',10,11,,11,20,')).toEqual([10, 11, 20]);
+    expect(relationKeyOf([])).toBe('');
+    expect(relationIdsOf('')).toEqual([]);
+  });
+});
+
+describe('relationsAt', () => {
+  const other: TrailFeature = {
+    ...sharedSegment(),
+    properties: { colors: ['red'], relations: [{ id: 10, name: 'Główny Szlak', color: 'red' }] },
+  };
+
+  it('a segment shared by red and yellow lists both relations', () => {
+    const key = relationKeyOf(
+      trailsForDisplay([sharedSegment()]).features.flatMap((f) => relationIdsOf(f.properties.relationKey)),
+    );
+    expect(relationsAt(key, [sharedSegment()])).toEqual([
+      { id: 10, name: 'Główny Szlak', color: 'red' },
+      { id: 11, color: 'red' },
+      { id: 20, name: 'Żółty do schroniska', color: 'yellow' },
+    ]);
+  });
+
+  it('lists a relation once even when many segments carry it', () => {
+    expect(relationsAt(',10,', [other, sharedSegment(), other])).toEqual([{ id: 10, name: 'Główny Szlak', color: 'red' }]);
+  });
+
+  it('keeps an unnamed relation unnamed (the popup says "Szlak czerwony")', () => {
+    const [unnamed] = relationsAt(',11,', [sharedSegment()]);
+    expect(unnamed).toEqual({ id: 11, color: 'red' });
+    expect(unnamed?.name).toBeUndefined();
+  });
+
+  it('skips ids that are not in the data', () => {
+    expect(relationsAt(',999,', [sharedSegment()])).toEqual([]);
+  });
+});
+
+describe('trailHighlightFilter', () => {
+  it('matches the key of any listed relation as a whole id', () => {
+    expect(trailHighlightFilter([10, 20])).toEqual([
+      'any',
+      ['in', ',10,', ['get', 'relationKey']],
+      ['in', ',20,', ['get', 'relationKey']],
+    ]);
+  });
+
+  it('matches nothing for no relations', () => {
+    expect(trailHighlightFilter([])).toEqual(['==', ['get', 'relationKey'], '']);
   });
 });
 
@@ -105,19 +200,69 @@ describe('routeToGeoJSON', () => {
   });
 });
 
+describe('routesToGeoJSON', () => {
+  const route = (id: string, x: number) =>
+    ({
+      id,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [x, 49, 800],
+          [x + 0.1, 49.1, 900],
+        ],
+      },
+    }) as Route;
+
+  it('is empty without routes', () => {
+    expect(routesToGeoJSON([])).toEqual({ type: 'FeatureCollection', features: [] });
+  });
+
+  it('gives one feature per route, carrying only its id', () => {
+    const routes = [route('a--1', 19), route('a--2', 20)];
+    const fc = routesToGeoJSON(routes);
+    expect(fc.features).toHaveLength(2);
+    expect(fc.features.map((f) => f.properties)).toEqual([{ id: 'a--1' }, { id: 'a--2' }]);
+    expect(fc.features.map((f) => f.geometry)).toEqual(routes.map((r) => r.geometry));
+  });
+});
+
 describe('overlayLayers', () => {
+  it('draws every route thin and purple under the trails, and the hovered one thick on top of them', () => {
+    const byId = Object.fromEntries(overlayLayers().map((l) => [l.id, l]));
+    expect(byId['routes-all']).toMatchObject({
+      type: 'line',
+      source: 'routes',
+      paint: { 'line-color': '#6a1b9a', 'line-width': 2, 'line-opacity': 0.55 },
+    });
+    expect(byId['routes-hover']).toMatchObject({
+      type: 'line',
+      source: 'routes',
+      filter: ['==', ['get', 'id'], ''],
+      paint: { 'line-color': '#6a1b9a', 'line-width': 4, 'line-opacity': 1 },
+    });
+  });
+
+  it('routeHoverFilter matches one route id', () => {
+    expect(routeHoverFilter('a--1')).toEqual(['==', ['get', 'id'], 'a--1']);
+    expect(routeHoverFilter(null)).toEqual(['==', ['get', 'id'], '']);
+  });
+
   it('overlayLayers ids are in the documented order', () => {
     const layers = overlayLayers();
     expect(layers.map((l) => l.id)).toEqual([
+      'routes-all',
       'trails',
+      'trails-highlight-casing',
+      'trails-highlight',
+      'routes-hover',
       'route-selected-casing',
       'route-selected',
       'peaks',
       'peak-labels',
       'profile-cursor',
     ]);
-    expect(OVERLAY_SOURCE_IDS).toEqual(['trails', 'route', 'peaks', 'cursor']);
-    expect(Object.keys(overlaySources())).toEqual(['trails', 'route', 'peaks', 'cursor']);
+    expect(OVERLAY_SOURCE_IDS).toEqual(['trails', 'routes', 'route', 'peaks', 'cursor']);
+    expect(Object.keys(overlaySources())).toEqual(['trails', 'routes', 'route', 'peaks', 'cursor']);
   });
 
   it('every layer references a declared overlay source', () => {
@@ -125,6 +270,32 @@ describe('overlayLayers', () => {
     for (const l of overlayLayers()) {
       expect(sources, l.id).toContain((l as Extract<LayerSpecification, { source: string }>).source);
     }
+  });
+
+  it('draws the highlighted trail wider than a trail, with a white outline under it, both hidden until a relation is hovered', () => {
+    const byId = Object.fromEntries(overlayLayers().map((l) => [l.id, l]));
+    expect(byId['trails-highlight']).toMatchObject({
+      type: 'line',
+      source: 'trails',
+      filter: trailHighlightFilter([]),
+      paint: { 'line-color': ['get', 'color'], 'line-offset': ['get', 'offset'] },
+    });
+    expect(byId['trails-highlight-casing']).toMatchObject({
+      type: 'line',
+      source: 'trails',
+      filter: trailHighlightFilter([]),
+      paint: { 'line-color': '#ffffff', 'line-offset': ['get', 'offset'] },
+    });
+    // Wider than the trail line at every zoom stop: [zoom, width] pairs of the interpolation.
+    const stops = (id: string) => ((byId[id]?.paint as Record<string, unknown>)['line-width'] as number[]).filter((_, i, a) => i >= a.length - 6);
+    const widths = (id: string) => stops(id).filter((_, i) => i % 2 === 1);
+    const trailWidths = widths('trails');
+    const highlightWidths = widths('trails-highlight');
+    const casingWidths = widths('trails-highlight-casing');
+    trailWidths.forEach((w, i) => {
+      expect(highlightWidths[i]).toBeGreaterThan(w);
+      expect(casingWidths[i]).toBeGreaterThan(highlightWidths[i]!);
+    });
   });
 
   it('draws trails with per-feature colour and offset, and peaks by status', () => {
@@ -184,10 +355,7 @@ describe('contours', () => {
 });
 
 describe('mountain mask', () => {
-  const areas = mountainAreas([
-    { lat: 49.5, lon: 19.5 },
-    { lat: 50.7, lon: 15.7 },
-  ]);
+  const areas = mountainAreaFixture.areas as MultiPolygon;
 
   it('puts the outside mask and the areas in one collection, told apart by `kind`', () => {
     const fc = maskToGeoJSON(areas);
