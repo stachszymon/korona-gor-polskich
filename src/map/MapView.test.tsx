@@ -155,6 +155,8 @@ const h = vi.hoisted(() => {
     static instances: FakePopup[] = [];
     options: Record<string, unknown>;
     text = '';
+    /** What `setDOMContent` was given. */
+    content: HTMLElement | null = null;
     lngLat: unknown = null;
     added = false;
     removed = false;
@@ -169,6 +171,10 @@ const h = vi.hoisted(() => {
     }
     setText(text: string) {
       this.text = text;
+      return this;
+    }
+    setDOMContent(content: HTMLElement) {
+      this.content = content;
       return this;
     }
     addTo() {
@@ -334,6 +340,8 @@ describe('MapView', () => {
       'mountain-mask-outline',
       'routes-all',
       'trails',
+      'trails-highlight-casing',
+      'trails-highlight',
       'routes-hover',
       'route-selected-casing',
       'route-selected',
@@ -800,6 +808,261 @@ describe('MapView', () => {
       move(map);
       rerender(<MapView {...baseProps({ detail: null })} />);
       expect(popups().some((p) => p.isOpen())).toBe(false);
+    });
+  });
+
+  describe('trails on the map', () => {
+    // Red 1 and blue 2 (both named) run on the segment in `detail`; red 3 has no name in OSM and runs elsewhere.
+    const trailsDetail: PeakDetail = {
+      ...detail,
+      trails: {
+        type: 'FeatureCollection',
+        features: [
+          detail.trails.features[0]!,
+          {
+            type: 'Feature',
+            properties: { colors: ['red'], relations: [{ id: 3, color: 'red' }] },
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [19.6, 49.7],
+                [19.61, 49.71],
+              ],
+            },
+          },
+        ],
+      },
+    };
+    const lngLat = { lng: 19.51, lat: 49.59 };
+    const popups = () => h.FakePopup.instances;
+    const trailPopups = () => popups().filter((p) => p.content !== null);
+    const highlight = (map: ReturnType<typeof currentMap>) => map.filters['trails-highlight'];
+    const casing = (map: ReturnType<typeof currentMap>) => map.filters['trails-highlight-casing'];
+    const none = ['==', ['get', 'relationKey'], ''];
+    const rel = (id: number) => ['in', `,${id},`, ['get', 'relationKey']];
+    /** The trail features under the pointer, as the map reports them: one per colour of the segment. */
+    const overTrail = (map: ReturnType<typeof currentMap>, ...keys: string[]) => {
+      map.queryResults['trails'] = keys.map((relationKey) => ({ properties: { relationKey } }));
+    };
+    const move = (map: ReturnType<typeof currentMap>, point = { x: 100, y: 80 }) =>
+      act(() => map.emit('mousemove', { point, lngLat }));
+    const click = (map: ReturnType<typeof currentMap>, extra: Record<string, unknown> = {}) =>
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat, ...extra }));
+
+    it('hovering a trail highlights its relation along the whole trail, with the pointer cursor', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      move(map);
+      expect(highlight(map)).toEqual(['any', rel(3)]);
+      expect(casing(map)).toEqual(['any', rel(3)]);
+      expect(map.canvas.style['cursor']).toBe('pointer');
+      expect(popups().some((p) => p.isOpen())).toBe(false);
+    });
+
+    it('a segment shared by red and yellow highlights both relations', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',1,', ',2,');
+      move(map);
+      expect(highlight(map)).toEqual(['any', rel(1), rel(2)]);
+    });
+
+    it('looks for trails in a few pixels around the pointer, more for a finger', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      move(map);
+      expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
+        [
+          [100 - 4, 80 - 4],
+          [100 + 4, 80 + 4],
+        ],
+        { layers: ['trails'] },
+      );
+      const tap = Object.assign(new MouseEvent('click'), { pointerType: 'touch' });
+      click(map, { originalEvent: tap });
+      expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
+        [
+          [100 - 12, 80 - 12],
+          [100 + 12, 80 + 12],
+        ],
+        { layers: ['trails'] },
+      );
+    });
+
+    it('sets the filter only when the relations change', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      move(map);
+      const setFilter = vi.spyOn(map, 'setFilter');
+      move(map, { x: 101, y: 80 });
+      move(map, { x: 102, y: 80 });
+      expect(setFilter).not.toHaveBeenCalled();
+      overTrail(map, ',1,');
+      move(map);
+      expect(setFilter).toHaveBeenCalledTimes(2);
+    });
+
+    it('moving off the trail clears the highlight and the cursor', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      move(map);
+      overTrail(map);
+      move(map);
+      expect(highlight(map)).toEqual(none);
+      expect(casing(map)).toEqual(none);
+      expect(map.canvas.style['cursor']).toBe('');
+    });
+
+    it('leaving the map or starting to move the camera clears the highlight', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      move(map);
+      act(() => map.emit('mouseout'));
+      expect(highlight(map)).toEqual(none);
+      move(map);
+      expect(highlight(map)).toEqual(['any', rel(3)]);
+      act(() => map.emit('movestart'));
+      expect(highlight(map)).toEqual(none);
+    });
+
+    it('a route under the pointer wins: the trail below it is not highlighted', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      map.queryResults['routes-all'] = [{ properties: { id: route.id } }];
+      move(map);
+      expect(highlight(map) ?? none).toEqual(none);
+      expect(map.filters['routes-hover']).toEqual(['==', ['get', 'id'], route.id]);
+      expect(map.queryRenderedFeatures).not.toHaveBeenCalledWith(expect.anything(), { layers: ['trails'] });
+    });
+
+    it('sliding from a trail onto a route drops the trail highlight', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      move(map);
+      map.queryResults['routes-all'] = [{ properties: { id: route.id } }];
+      move(map);
+      expect(highlight(map)).toEqual(none);
+    });
+
+    it('a peak under the pointer wins over a trail', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      map.queryResults['peaks'] = [{ properties: { id: 'babia-gora' } }];
+      move(map);
+      expect(highlight(map) ?? none).toEqual(none);
+      expect(map.canvas.style['cursor']).toBe('pointer');
+    });
+
+    it('does not highlight while the map is moving', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      map.moving = true;
+      move(map);
+      expect(highlight(map) ?? none).toEqual(none);
+    });
+
+    it('clicking a trail opens a popup with a closing button and a bar and name for every relation', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',1,', ',2,');
+      click(map);
+      const [popup] = trailPopups();
+      expect(popup).toBeDefined();
+      expect(popup!.isOpen()).toBe(true);
+      expect(popup!.options).toMatchObject({ closeButton: true });
+      expect(popup!.options['closeOnClick']).not.toBe(false);
+      expect(popup!.lngLat).toEqual(lngLat);
+      const items = [...popup!.content!.querySelectorAll('li')];
+      expect(items.map((li) => li.textContent)).toEqual(['Szlak czerwony', 'Szlak niebieski']);
+      expect(items.map((li) => li.querySelector('[data-color]')?.getAttribute('data-color'))).toEqual(['red', 'blue']);
+      expect((items[0]!.querySelector('[data-color]') as HTMLElement).style.backgroundColor).not.toBe('');
+    });
+
+    it('names an unnamed relation after its colour', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      click(map);
+      expect(trailPopups()[0]!.content!.textContent).toBe('Szlak czerwony');
+    });
+
+    it('shows a name from OSM as plain text, never as markup', async () => {
+      const markup: PeakDetail = {
+        ...detail,
+        trails: {
+          ...detail.trails,
+          features: [
+            {
+              ...detail.trails.features[0]!,
+              properties: { colors: ['red'], relations: [{ id: 7, name: '<img src=x onerror=alert(1)>', color: 'red' }] },
+            },
+          ],
+        },
+      };
+      const { map } = await renderLoaded(baseProps({ detail: markup }));
+      overTrail(map, ',7,');
+      click(map);
+      const content = trailPopups()[0]!.content!;
+      expect(content.querySelector('img')).toBeNull();
+      expect(content.textContent).toBe('<img src=x onerror=alert(1)>');
+    });
+
+    it('a click on another trail replaces the popup', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',1,');
+      click(map);
+      overTrail(map, ',3,');
+      click(map);
+      expect(trailPopups().filter((p) => p.isOpen())).toHaveLength(1);
+      expect(trailPopups().at(-1)!.content!.textContent).toBe('Szlak czerwony');
+    });
+
+    it('a click on a route selects it and opens no trail popup', async () => {
+      const props = baseProps({ detail: trailsDetail });
+      const { map } = await renderLoaded(props);
+      overTrail(map, ',3,');
+      map.queryResults['routes-all'] = [{ properties: { id: route.id } }];
+      click(map);
+      expect(props.onRouteSelect).toHaveBeenCalledExactlyOnceWith(route.id);
+      expect(trailPopups()).toHaveLength(0);
+    });
+
+    it('a click on a peak opens no trail popup', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      map.queryResults['peaks'] = [{ properties: { id: 'babia-gora' } }];
+      click(map);
+      expect(trailPopups()).toHaveLength(0);
+    });
+
+    it('a click on empty map opens nothing and clears a highlight left by a tap', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',3,');
+      click(map);
+      expect(highlight(map)).toEqual(['any', rel(3)]);
+      overTrail(map);
+      click(map);
+      expect(trailPopups()).toHaveLength(1);
+      expect(highlight(map)).toEqual(none);
+    });
+
+    it('the highlight of a tap stays until the next tap', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',1,');
+      click(map);
+      expect(highlight(map)).toEqual(['any', rel(1)]);
+      overTrail(map, ',3,');
+      click(map);
+      expect(highlight(map)).toEqual(['any', rel(3)]);
+    });
+
+    it('closes the popup when another peak is loaded and when the map goes away', async () => {
+      const { map, rerender, unmount } = await renderLoaded(baseProps({ detail: trailsDetail }));
+      overTrail(map, ',1,');
+      click(map);
+      rerender(<MapView {...baseProps({ detail: null })} />);
+      expect(trailPopups().some((p) => p.isOpen())).toBe(false);
+      rerender(<MapView {...baseProps({ detail: trailsDetail })} />);
+      click(map);
+      expect(trailPopups().some((p) => p.isOpen())).toBe(true);
+      unmount();
+      expect(trailPopups().some((p) => p.isOpen())).toBe(false);
     });
   });
 

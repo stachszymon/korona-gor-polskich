@@ -1,3 +1,6 @@
+import type { PttkColor } from '../data/schema';
+import { PTTK_NAME_PL } from '../map/config';
+
 /** `210` → `"ok. 3 h 30 min"`, `45` → `"ok. 45 min"`, `120` → `"ok. 2 h"`. */
 export function formatDuration(min: number): string {
   const total = Math.round(min);
@@ -17,4 +20,9 @@ export function formatDistance(km: number): string {
 /** `980` → `"↑ 980 m"`. */
 export function formatAscent(m: number): string {
   return `↑ ${Math.round(m)} m`;
+}
+
+/** `'red'` → `"czerwony"`. */
+export function colorNamePl(color: PttkColor): string {
+  return PTTK_NAME_PL[color];
 }

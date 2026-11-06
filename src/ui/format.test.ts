@@ -1,4 +1,4 @@
-import { formatAscent, formatDistance, formatDuration } from './format';
+import { colorNamePl, formatAscent, formatDistance, formatDuration } from './format';
 
 describe('format', () => {
   it('formatDuration', () => {
@@ -15,5 +15,13 @@ describe('format', () => {
   it('formatAscent', () => {
     expect(formatAscent(980)).toBe('↑ 980 m');
     expect(formatAscent(979.6)).toBe('↑ 980 m');
+  });
+
+  it('colorNamePl gives the Polish name of each trail colour', () => {
+    expect(colorNamePl('red')).toBe('czerwony');
+    expect(colorNamePl('blue')).toBe('niebieski');
+    expect(colorNamePl('green')).toBe('zielony');
+    expect(colorNamePl('yellow')).toBe('żółty');
+    expect(colorNamePl('black')).toBe('czarny');
   });
 });

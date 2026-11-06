@@ -19,13 +19,18 @@ import {
   overlayLayers,
   overlaySources,
   peaksToGeoJSON,
+  relationIdsOf,
+  relationKeyOf,
+  relationsAt,
   routeHoverFilter,
   routesToGeoJSON,
   routeToGeoJSON,
+  trailHighlightFilter,
   trailsForDisplay,
   trailsOpacity,
   type ProgressLike,
 } from './overlay';
+import { trailPopupContent } from './trailPopup';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -61,6 +66,9 @@ type Position = [number, number];
 /** Routes are thin lines: look this many pixels around the pointer (more for a finger) for one. */
 const ROUTE_HIT_PX = 6;
 const ROUTE_TOUCH_HIT_PX = 14;
+/** Trails are drawn a few pixels wide and side by side (3 px apart) where several share a segment. */
+const TRAIL_HIT_PX = 4;
+const TRAIL_TOUCH_HIT_PX = 12;
 
 /** A tap reaches maplibre as a `click` whose pointer event says `touch`; Safari sends a plain mouse event, so ask the device. */
 function isTouch(event: Event | undefined): boolean {
@@ -70,27 +78,32 @@ function isTouch(event: Event | undefined): boolean {
 }
 
 /**
- * What is under the pointer: whether a peak is (it wins over routes, which end at peaks) and the route, if any.
+ * What is under the pointer: whether a peak is (it wins over routes, which end at peaks), the route, if any,
+ * and, only when neither is there, the OSM relations of the marked trail (every relation of the segment).
  * Several routes can overlap; prefer the selected one, then the one already hovered, then the first found.
  */
 function targetAt(
   map: maplibregl.Map,
   event: MapMouseEvent | MapTouchEvent,
   preferred: readonly (string | null | undefined)[],
-): { peak: boolean; routeId: string | null } {
-  if (map.queryRenderedFeatures(event.point, { layers: ['peaks'] }).length > 0) return { peak: true, routeId: null };
-  const r = isTouch(event.originalEvent) ? ROUTE_TOUCH_HIT_PX : ROUTE_HIT_PX;
+): { peak: boolean; routeId: string | null; trailIds: number[] } {
+  if (map.queryRenderedFeatures(event.point, { layers: ['peaks'] }).length > 0) return { peak: true, routeId: null, trailIds: [] };
+  const touch = isTouch(event.originalEvent);
   const { x, y } = event.point;
-  const hits = map.queryRenderedFeatures(
-    [
-      [x - r, y - r],
-      [x + r, y + r],
-    ],
-    { layers: ['routes-all'] },
-  );
+  const around = (r: number): [[number, number], [number, number]] => [
+    [x - r, y - r],
+    [x + r, y + r],
+  ];
+  const hits = map.queryRenderedFeatures(around(touch ? ROUTE_TOUCH_HIT_PX : ROUTE_HIT_PX), { layers: ['routes-all'] });
   const ids = hits.map((hit) => hit.properties?.['id']).filter((id): id is string => typeof id === 'string');
   const routeId = preferred.find((id) => id != null && ids.includes(id)) ?? ids[0] ?? null;
-  return { peak: false, routeId };
+  if (routeId !== null) return { peak: false, routeId, trailIds: [] };
+  const trailHits = map.queryRenderedFeatures(around(touch ? TRAIL_TOUCH_HIT_PX : TRAIL_HIT_PX), { layers: ['trails'] });
+  const trailIds = trailHits.flatMap((hit) => {
+    const key: unknown = hit.properties?.['relationKey'];
+    return typeof key === 'string' ? relationIdsOf(key) : [];
+  });
+  return { peak: false, routeId: null, trailIds: [...new Set(trailIds)] };
 }
 
 function routeTooltip(route: Route): string {
@@ -184,13 +197,15 @@ export function MapView({
 
   // Latest values for the long-lived map event handlers and the one-off camera moves.
   const routes = detail?.routes;
-  const latest = useRef({ peaks, routes, selectedRouteId, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError });
+  const trails = detail?.trails.features;
+  const latest = useRef({ peaks, routes, trails, selectedRouteId, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError });
   useEffect(() => {
-    latest.current = { peaks, routes, selectedRouteId, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError };
+    latest.current = { peaks, routes, trails, selectedRouteId, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError };
   });
   /** The route under the mouse pointer; it wins over the one hovered in the list. */
   const mapHoveredRoute = useRef<string | null>(null);
   const clearMapHover = useRef<() => void>(() => {});
+  const closeTrailPopup = useRef<() => void>(() => {});
   const appliedHover = useRef<string | null>(null);
   /** Points the `routes-hover` layer at the hovered route; a pointer on the map wins over a hovered list row. */
   const syncRouteHover = useCallback((map: maplibregl.Map) => {
@@ -209,6 +224,8 @@ export function MapView({
     let map: maplibregl.Map | null = null;
     let loaded = false;
     let tooltip: maplibregl.Popup | null = null;
+    let trailPopup: maplibregl.Popup | null = null;
+    let appliedHighlight = '';
 
     void loadMountainStyle().then(({ style, failed }) => {
       if (cancelled) return;
@@ -231,26 +248,46 @@ export function MapView({
         });
         const hoverMap = map;
         tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'route-tooltip', offset: 12 });
-        const clearHover = () => {
+        /** Highlights these OSM relations along their whole length (on the casing and the coloured line). */
+        const setHighlight = (ids: readonly number[]) => {
+          if (!loaded) return;
+          const key = relationKeyOf(ids);
+          if (key === appliedHighlight) return;
+          appliedHighlight = key;
+          const filter = trailHighlightFilter(ids);
+          hoverMap.setFilter('trails-highlight-casing', filter);
+          hoverMap.setFilter('trails-highlight', filter);
+        };
+        const clearRouteHover = () => {
           mapHoveredRoute.current = null;
           tooltip?.remove();
-          hoverMap.getCanvas().style.cursor = '';
           if (loaded) syncRouteHover(hoverMap);
         };
+        const clearHover = () => {
+          clearRouteHover();
+          setHighlight([]);
+          hoverMap.getCanvas().style.cursor = '';
+        };
         clearMapHover.current = clearHover;
-        // The one place that decides the cursor and the hover state: a peak or a route under the pointer gives
-        // `pointer`, anything else clears it. A route wins over a trail (trail hover goes after the route check
-        // and runs only when no route is under the pointer).
+        closeTrailPopup.current = () => {
+          trailPopup?.remove();
+          trailPopup = null;
+        };
+        // The one place that decides the cursor and the hover state: a peak, a route or a marked trail under the
+        // pointer gives `pointer`, anything else clears it. Priority: peak > route > trail (a trail is only
+        // looked up when neither is under the pointer).
         const mapPreferences = () => [latest.current.selectedRouteId, mapHoveredRoute.current, latest.current.hoveredRouteId];
         map.on('mousemove', (event: MapMouseEvent) => {
           if (!loaded || hoverMap.isMoving()) return;
-          const { peak, routeId } = targetAt(hoverMap, event, mapPreferences());
+          const { peak, routeId, trailIds } = targetAt(hoverMap, event, mapPreferences());
           const route = routeId === null ? undefined : latest.current.routes?.find((r) => r.id === routeId);
           if (!route) {
-            clearHover();
-            if (peak) hoverMap.getCanvas().style.cursor = 'pointer';
+            clearRouteHover();
+            setHighlight(trailIds);
+            hoverMap.getCanvas().style.cursor = peak || trailIds.length > 0 ? 'pointer' : '';
             return;
           }
+          setHighlight([]);
           mapHoveredRoute.current = route.id;
           hoverMap.getCanvas().style.cursor = 'pointer';
           syncRouteHover(hoverMap);
@@ -262,8 +299,18 @@ export function MapView({
         map.on('movestart', clearHover);
         map.on('click', (event: MapMouseEvent) => {
           if (!loaded) return;
-          const { routeId } = targetAt(hoverMap, event, mapPreferences());
+          closeTrailPopup.current();
+          const { peak, routeId, trailIds } = targetAt(hoverMap, event, mapPreferences());
           if (routeId !== null) latest.current.onRouteSelect(routeId);
+          // A tap sets the highlight too (there is no hover on a touch screen) and keeps it until the next tap.
+          setHighlight(trailIds);
+          if (peak || routeId !== null || trailIds.length === 0) return;
+          const relations = relationsAt(relationKeyOf(trailIds), latest.current.trails ?? []);
+          if (relations.length === 0) return;
+          trailPopup = new maplibregl.Popup({ closeButton: true, className: 'trail-popup', maxWidth: '280px', offset: 8 })
+            .setLngLat(event.lngLat)
+            .setDOMContent(trailPopupContent(relations))
+            .addTo(hoverMap);
         });
         map.on('load', () => {
           if (!map) return;
@@ -299,7 +346,9 @@ export function MapView({
     return () => {
       cancelled = true;
       tooltip?.remove();
+      trailPopup?.remove();
       clearMapHover.current = () => {};
+      closeTrailPopup.current = () => {};
       map?.remove();
       mapRef.current = null;
       setReady(false);
@@ -382,6 +431,8 @@ export function MapView({
     const map = mapRef.current;
     if (!ready || !map) return;
     const features = detail?.trails.features ?? [];
+    closeTrailPopup.current();
+    clearMapHover.current();
     (map.getSource('trails') as maplibregl.GeoJSONSource | undefined)?.setData(trailsForDisplay(features));
   }, [ready, detail]);
 
