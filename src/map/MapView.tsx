@@ -3,11 +3,10 @@ import * as maplibregl from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { MapLayerMouseEvent, StyleSpecification } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
-import type { PeakDetail, PeakSummary } from '../data/schema';
-import { frameRoute } from './camera';
+import type { MountainArea, PeakDetail, PeakSummary } from '../data/schema';
+import { frameRoute, minZoomForBounds } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { labelRestrictions } from './labels';
-import { mountainAreas } from './mask';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
 import {
   contourLayers,
@@ -29,6 +28,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 export type MapViewProps = {
   peaks: PeakSummary[];
+  /** The mountains: masks everything else and bounds the camera. `null` when it could not be loaded (no mask, no bounds). */
+  area: MountainArea | null;
   progress: ProgressLike;
   detail: PeakDetail | null;
   selectedRouteId: string | null;
@@ -116,7 +117,7 @@ function keepInView(map: maplibregl.Map, bounds: [Position, Position], padding: 
   for (let step = 0; step < MAX_ZOOM_OUT_STEPS && !visible(); step++) map.setZoom(map.getZoom() - ZOOM_OUT_STEP);
 }
 
-export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError, onMapError }: MapViewProps) {
+export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError, onMapError }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
@@ -204,18 +205,33 @@ export function MapView({ peaks, progress, detail, selectedRouteId, cursor, onPe
     (map.getSource('peaks') as maplibregl.GeoJSONSource | undefined)?.setData(peaksToGeoJSON(peaks, progress));
   }, [ready, peaks, progress]);
 
-  // The mountain areas only change with the set of peaks, not with progress or selection.
-  const peakSetKey = peaks.map((p) => p.id).join(',');
+  // The mask and the label restrictions come from the area file; progress and selection do not touch them.
   useEffect(() => {
     const map = mapRef.current;
-    const current = latest.current.peaks;
-    if (!ready || !map || current.length === 0) return;
-    const areas = mountainAreas(current);
-    (map.getSource(MASK_SOURCE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(maskToGeoJSON(areas));
-    const { hidden, filters } = labelRestrictions(map.getStyle().layers, areas);
+    if (!ready || !map || !area) return;
+    (map.getSource(MASK_SOURCE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(maskToGeoJSON(area.areas));
+    const { hidden, filters } = labelRestrictions(map.getStyle().layers, area.areas);
     for (const id of hidden) map.setLayoutProperty(id, 'visibility', 'none');
     for (const [id, filter] of Object.entries(filters)) map.setFilter(id, filter);
-  }, [ready, peakSetKey]);
+  }, [ready, area]);
+
+  // The camera stays inside the area: panning stops at its bounds and zooming out stops when they fill the
+  // map container (which changes with the window size and the side panel, hence the `resize` listener).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !area) return;
+    const { bounds } = area;
+    const fitMinZoom = () => {
+      const { clientWidth, clientHeight } = map.getContainer();
+      map.setMinZoom(minZoomForBounds(bounds, clientWidth, clientHeight));
+    };
+    map.setMaxBounds(bounds);
+    fitMinZoom();
+    map.on('resize', fitMinZoom);
+    return () => {
+      map.off('resize', fitMinZoom);
+    };
+  }, [ready, area]);
 
   useEffect(() => {
     const map = mapRef.current;

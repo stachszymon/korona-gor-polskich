@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePeakDetail, usePeaksIndex } from './data/usePeakDetail';
+import { useMountainArea, usePeakDetail, usePeaksIndex } from './data/usePeakDetail';
 import { MapView } from './map/MapView';
 import { pointAtDistance } from './map/routeCursor';
 import { supportsWebGL as detectWebGL } from './map/webgl';
@@ -32,6 +32,8 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
   const webgl = webglSupported && !mapFailed;
 
   const { status: indexStatus, index, retry: retryIndex } = usePeaksIndex(fetchFn);
+  // Decoration only: when the file cannot be loaded the map simply has no mask and no bounds.
+  const { area } = useMountainArea(fetchFn);
   const { progress, persistent, recoveredCorrupt, setStatus, replace } = useProgress();
 
   const [selectedPeakId, setSelectedPeakId] = useState<string | null>(null);
@@ -158,6 +160,7 @@ export function App({ deps = {} }: { deps?: AppDeps }) {
             <div className="app__map-canvas">
               <MapView
                 peaks={peaks}
+                area={area}
                 progress={progress}
                 detail={detail}
                 selectedRouteId={selectedRouteId}

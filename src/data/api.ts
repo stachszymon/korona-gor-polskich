@@ -1,7 +1,9 @@
 import type { z } from 'zod';
 import {
+  MountainAreaSchema,
   PeakDetailSchema,
   PeaksIndexSchema,
+  type MountainArea,
   type PeakDetail,
   type PeaksIndex,
 } from './schema';
@@ -64,4 +66,11 @@ export function loadPeakDetail(
     PeakDetailSchema,
     fetchFn,
   );
+}
+
+export function loadMountainArea(
+  fetchFn: typeof fetch = (...args) => fetch(...args),
+  base: string = import.meta.env.BASE_URL,
+): Promise<MountainArea> {
+  return loadJson(`${base}data/mountain-area.json`, MountainAreaSchema, fetchFn);
 }

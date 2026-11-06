@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { loadPeakDetail, loadPeaksIndex } from './api';
-import type { PeakDetail, PeaksIndex } from './schema';
+import { loadMountainArea, loadPeakDetail, loadPeaksIndex } from './api';
+import type { MountainArea, PeakDetail, PeaksIndex } from './schema';
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -65,4 +65,15 @@ export function usePeaksIndex(
   const load = useCallback(() => loadPeaksIndex(fetchFn), [fetchFn]);
   const { status, data, retry } = useResource(INDEX_ID, load);
   return { status, index: data, retry };
+}
+
+const AREA_ID = 'mountain-area';
+
+/** The mountain area is only decoration: callers treat `error` like "no area" and show nothing. */
+export function useMountainArea(
+  fetchFn: typeof fetch = defaultFetch,
+): { status: LoadStatus; area: MountainArea | null } {
+  const load = useCallback(() => loadMountainArea(fetchFn), [fetchFn]);
+  const { status, data } = useResource(AREA_ID, load);
+  return { status, area: data };
 }

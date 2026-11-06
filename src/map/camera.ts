@@ -105,6 +105,31 @@ export function keepPointsInView(map: FramingMap, points: readonly LngLat[], pad
   }
 }
 
+/** Side of a Web Mercator tile in pixels (MapLibre's world is `512 * 2^zoom` px wide). */
+const TILE_SIZE = 512;
+
+/** Share of the Web Mercator world (0 at the north edge, 1 at the south edge) a latitude lies at. */
+function mercatorY(lat: number): number {
+  const rad = (lat * Math.PI) / 180;
+  return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
+}
+
+/**
+ * The zoom at which `bounds` (`[west, south, east, north]`) just fits a `widthPx` x `heightPx` window,
+ * top-down in Web Mercator with 512 px tiles. Used as the map's `minZoom`: zooming out further would
+ * show more than the bounds. Never below 0.
+ */
+export function minZoomForBounds(
+  [west, south, east, north]: readonly [number, number, number, number],
+  widthPx: number,
+  heightPx: number,
+): number {
+  const dx = (east - west) / 360;
+  const dy = mercatorY(south) - mercatorY(north);
+  const zoom = Math.min(Math.log2(widthPx / (dx * TILE_SIZE)), Math.log2(heightPx / (dy * TILE_SIZE)));
+  return Number.isFinite(zoom) ? Math.max(zoom, 0) : 0;
+}
+
 /**
  * Animates the camera so the whole route, summit included, is visible at `pitch`.
  * The target camera is computed synchronously with instant moves and the camera is put back

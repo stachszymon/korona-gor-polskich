@@ -1,6 +1,8 @@
+import type { MultiPolygon } from 'geojson';
 import type { LayerSpecification } from 'maplibre-gl';
 import type { PeakSummary, Route, TrailFeature } from '../data/schema';
-import { mountainAreas, outsideMask } from './mask';
+import mountainAreaFixture from '../test/fixtures/mountain-area.json';
+import { outsideMask } from './mask';
 import {
   contourLayers,
   contourSourceSpec,
@@ -184,10 +186,7 @@ describe('contours', () => {
 });
 
 describe('mountain mask', () => {
-  const areas = mountainAreas([
-    { lat: 49.5, lon: 19.5 },
-    { lat: 50.7, lon: 15.7 },
-  ]);
+  const areas = mountainAreaFixture.areas as MultiPolygon;
 
   it('puts the outside mask and the areas in one collection, told apart by `kind`', () => {
     const fc = maskToGeoJSON(areas);

@@ -5,15 +5,17 @@ import { PeakDetailSchema } from './data/schema';
 import { STORAGE_KEY } from './progress/progress';
 import babiaGora from './test/fixtures/peaks/babia-gora.json';
 import peaksIndex from './test/fixtures/peaks.json';
+import mountainArea from './test/fixtures/mountain-area.json';
 
 vi.mock('./map/MapView', () => ({
   MapView: (props: {
+    area: unknown;
     cursor: [number, number] | null;
     onPeakClick(id: string): void;
     onTileError(): void;
     onMapError(): void;
   }) => (
-    <div data-testid="map" data-cursor={JSON.stringify(props.cursor)}>
+    <div data-testid="map" data-cursor={JSON.stringify(props.cursor)} data-area={props.area === null ? 'none' : 'loaded'}>
       <button type="button" onClick={() => props.onPeakClick('babia-gora')}>
         marker Babia Góra
       </button>
@@ -45,6 +47,7 @@ function makeFetch(detail: unknown = babiaGora): typeof fetch {
   return vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith('data/peaks.json')) return Promise.resolve(json(peaksIndex));
+    if (url.endsWith('data/mountain-area.json')) return Promise.resolve(json(mountainArea));
     if (url.endsWith('data/peaks/babia-gora.json')) return Promise.resolve(json(detail));
     return Promise.resolve(json({}, false));
   }) as unknown as typeof fetch;
@@ -186,6 +189,20 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'marker Babia Góra' }));
     expect(await screen.findByRole('article', { name: 'Babia Góra' })).toBeInTheDocument();
+  });
+
+  it('gives the map the mountain area, and none (no message) when the file cannot be loaded', async () => {
+    const { unmount } = render(<App deps={{ fetchFn: makeFetch(), supportsWebGL: () => true }} />);
+    await waitFor(() => expect(screen.getByTestId('map')).toHaveAttribute('data-area', 'loaded'));
+    unmount();
+
+    const failing = vi.fn((input: RequestInfo | URL) =>
+      String(input).endsWith('data/mountain-area.json') ? Promise.resolve(json({}, false)) : (makeFetch() as typeof fetch)(input),
+    ) as unknown as typeof fetch;
+    render(<App deps={{ fetchFn: failing, supportsWebGL: () => true }} />);
+    await screen.findByRole('region', { name: 'Lista szczytów' });
+    expect(screen.getByTestId('map')).toHaveAttribute('data-area', 'none');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('shows a dismissible banner when map tiles fail', async () => {

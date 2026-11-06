@@ -1,5 +1,5 @@
 import type { ExpressionSpecification, HillshadeLayerSpecification, LayerSpecification, RasterDEMSourceSpecification, StyleSpecification } from 'maplibre-gl';
-import { DEM_URL, TERRAIN_EXAGGERATION } from './config';
+import { DEM_URL, HILLSHADE_EXAGGERATION, TERRAIN_EXAGGERATION } from './config';
 
 const HIDDEN_LAYER_PATTERNS: RegExp[] = [
   /^(road|bridge|tunnel)_.*_casing$/,
@@ -72,7 +72,7 @@ export function toMountainStyle(style: StyleSpecification): StyleSpecification {
     id: 'hillshade',
     type: 'hillshade',
     source: 'hillshade-dem',
-    paint: { 'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#473B24' },
+    paint: { 'hillshade-exaggeration': HILLSHADE_EXAGGERATION, 'hillshade-shadow-color': '#473B24' },
   };
   const anchor = firstSymbolLayerId(layers);
   const anchorIndex = anchor === undefined ? -1 : layers.findIndex((l) => l.id === anchor);

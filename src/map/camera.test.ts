@@ -1,4 +1,4 @@
-import { fitAdjustment, fitsInViewport, frameRoute, projectedBox, type FramingMap } from './camera';
+import { fitAdjustment, fitsInViewport, frameRoute, minZoomForBounds, projectedBox, type FramingMap } from './camera';
 
 const viewport = { width: 800, height: 600 };
 
@@ -182,5 +182,48 @@ describe('frameRoute', () => {
     const map = new PitchedMap();
     frameRoute(map, [], { padding: 60, pitch: 48, duration: 1200 });
     expect(map.calls).toEqual([]);
+  });
+});
+
+describe('minZoomForBounds', () => {
+  const bounds: [number, number, number, number] = [15, 49, 21, 51.5];
+
+  /** Normalised Web Mercator extent of `bounds`: the share of the world they span. */
+  function extent([west, south, east, north]: [number, number, number, number]) {
+    const y = (lat: number) => {
+      const rad = (lat * Math.PI) / 180;
+      return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
+    };
+    return { dx: (east - west) / 360, dy: y(south) - y(north) };
+  }
+
+  it('needs a higher zoom in a big window than in a small one', () => {
+    expect(minZoomForBounds(bounds, 1280, 800)).toBeGreaterThan(minZoomForBounds(bounds, 360, 640));
+  });
+
+  it('fits the bounds in the window at the returned zoom', () => {
+    for (const [width, height] of [
+      [1280, 800],
+      [360, 640],
+      [900, 300],
+    ] as const) {
+      const zoom = minZoomForBounds(bounds, width, height);
+      const { dx, dy } = extent(bounds);
+      const worldPx = 512 * 2 ** zoom;
+      expect(dx * worldPx).toBeLessThanOrEqual(width + 1e-6);
+      expect(dy * worldPx).toBeLessThanOrEqual(height + 1e-6);
+      // Tight in at least one dimension.
+      expect(Math.max(dx * worldPx - width, dy * worldPx - height)).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('is limited by the width in a narrow window and by the height in a short one', () => {
+    const { dx, dy } = extent(bounds);
+    expect(minZoomForBounds(bounds, 360, 2000)).toBeCloseTo(Math.log2(360 / (dx * 512)), 9);
+    expect(minZoomForBounds(bounds, 3000, 300)).toBeCloseTo(Math.log2(300 / (dy * 512)), 9);
+  });
+
+  it('never goes below zero for a degenerate window', () => {
+    expect(minZoomForBounds(bounds, 0, 0)).toBe(0);
   });
 });

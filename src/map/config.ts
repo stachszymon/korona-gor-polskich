@@ -13,7 +13,8 @@ export const PTTK_HEX: Record<PttkColor, string> = {
 
 export const STATUS_HEX = { done: '#2e7d32', planned: '#f9a825', todo: '#c62828' } as const;
 
-export const TERRAIN_EXAGGERATION = 1.3;
+export const TERRAIN_EXAGGERATION = 1.8;
+export const HILLSHADE_EXAGGERATION = 0.7;
 
 /** Contour spacing per zoom level: `[minor, major]` elevation distance in metres. */
 export const CONTOUR_THRESHOLDS: Record<number, [number, number]> = {

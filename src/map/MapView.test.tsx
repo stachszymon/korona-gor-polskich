@@ -1,6 +1,8 @@
 import { act, render, waitFor } from '@testing-library/react';
 import type { StyleSpecification } from 'maplibre-gl';
-import type { PeakDetail, PeakSummary, Route } from '../data/schema';
+import type { MountainArea, PeakDetail, PeakSummary, Route } from '../data/schema';
+import areaFixture from '../test/fixtures/mountain-area.json';
+import { minZoomForBounds } from './camera';
 import { MapView } from './MapView';
 import { OVERLAY_SOURCE_IDS } from './overlay';
 
@@ -38,6 +40,10 @@ const h = vi.hoisted(() => {
       for (const hd of this.handlers) if (hd.type === type && hd.layer === layer) hd.fn(event);
     }
     addControl = vi.fn();
+    off(type: string, fn: Handler) {
+      this.handlers = this.handlers.filter((hd) => !(hd.type === type && hd.fn === fn));
+      return this;
+    }
     addSource(id: string, spec: unknown) {
       this.sources[id] = spec;
     }
@@ -98,9 +104,13 @@ const h = vi.hoisted(() => {
     setZoom(z: number) {
       this.zoom = z;
     }
+    /** Container size; change it and emit `resize` to simulate a window or panel resize. */
+    size = { clientWidth: 800, clientHeight: 600 };
     getContainer() {
-      return { clientWidth: 800, clientHeight: 600 };
+      return this.size;
     }
+    setMaxBounds = vi.fn();
+    setMinZoom = vi.fn();
     /** Corners land outside the 800x600 viewport until zoomed out below 4.5. */
     project() {
       return { x: this.zoom > 4.5 ? 900 : 100, y: 100 };
@@ -152,6 +162,8 @@ const STYLE: StyleSpecification = {
     { id: 'place', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place' },
   ],
 };
+
+const area = areaFixture as MountainArea;
 
 const peaks: PeakSummary[] = [
   { id: 'babia-gora', name: 'Babia Góra', range: 'Beskid Żywiecki', elevation: 1725, lat: 49.5732, lon: 19.5294, routeCount: 1 },
@@ -212,6 +224,7 @@ const detail: PeakDetail = {
 type Props = Parameters<typeof MapView>[0];
 const baseProps = (over: Partial<Props> = {}): Props => ({
   peaks,
+  area,
   progress: { peaks: { rysy: { status: 'done' } } },
   detail: null,
   selectedRouteId: null,
@@ -249,7 +262,7 @@ describe('MapView', () => {
     const { map } = await renderLoaded(baseProps());
 
     const style = map.options.style as StyleSpecification;
-    expect(style.terrain).toEqual({ source: 'dem', exaggeration: 1.3 });
+    expect(style.terrain).toEqual({ source: 'dem', exaggeration: 1.8 });
     expect(style.layers.some((l) => l.id === 'hillshade')).toBe(true);
     expect(map.options.pitch).toBe(50);
     expect(h.setupMaplibre).toHaveBeenCalledOnce();
@@ -294,17 +307,54 @@ describe('MapView', () => {
     expect(map.sources['mountain-mask']).toMatchObject({ type: 'geojson' });
     const data = map.data['mountain-mask'] as { features: { properties: { kind: string }; geometry: { type: string; coordinates: unknown[] } }[] };
     expect(data.features.map((f) => f.properties.kind)).toEqual(['outside', 'area', 'area']);
-    // Babia Gora and Rysy are 50 km apart, so one area each: the mask has the world ring and two holes.
+    // The fixture has two areas: the mask has the world ring and two holes.
     expect(data.features[0]?.geometry.type).toBe('Polygon');
     expect(data.features[0]?.geometry.coordinates).toHaveLength(3);
   });
 
-  it('keeps the mask below the overlay layers and does not restrict panning', async () => {
+  it('keeps the mask below the overlay layers', async () => {
     const { map } = await renderLoaded(baseProps());
     const ids = map.layers.map((l) => l.spec.id);
     expect(ids.indexOf('mountain-mask-fill')).toBeGreaterThan(ids.indexOf('contour-labels'));
     expect(ids.indexOf('mountain-mask-outline')).toBeLessThan(ids.indexOf('trails'));
+  });
+
+  it('keeps the camera inside the area: maxBounds from the file and a minZoom that fits the container', async () => {
+    const { map } = await renderLoaded(baseProps());
+    expect(map.setMaxBounds).toHaveBeenCalledWith(area.bounds);
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(area.bounds, 800, 600));
+  });
+
+  it('recomputes minZoom when the container is resized', async () => {
+    const { map } = await renderLoaded(baseProps());
+    const wide = minZoomForBounds(area.bounds, 800, 600);
+
+    map.size = { clientWidth: 360, clientHeight: 640 };
+    act(() => map.emit('resize'));
+    const narrow = minZoomForBounds(area.bounds, 360, 640);
+    expect(narrow).toBeLessThan(wide);
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(narrow);
+
+    map.size = { clientWidth: 1280, clientHeight: 800 };
+    act(() => map.emit('resize'));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(area.bounds, 1280, 800));
+  });
+
+  it('does not restrict the camera without an area (the file could not be loaded)', async () => {
+    const { map } = await renderLoaded(baseProps({ area: null }));
+    act(() => map.emit('resize'));
+    expect(map.setMaxBounds).not.toHaveBeenCalled();
+    expect(map.setMinZoom).not.toHaveBeenCalled();
     expect(map.options).not.toHaveProperty('maxBounds');
+  });
+
+  it('applies the area when it arrives after the map has loaded', async () => {
+    const { map, rerender } = await renderLoaded(baseProps({ area: null }));
+    expect(map.data['mountain-mask']).toBeUndefined();
+
+    rerender(<MapView {...baseProps()} />);
+    expect(map.setMaxBounds).toHaveBeenCalledWith(area.bounds);
+    expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(3);
   });
 
   it('hides country labels and limits city labels to the mountain areas on the live map', async () => {
@@ -321,25 +371,31 @@ describe('MapView', () => {
     expect(h.FakeMap.instances).toHaveLength(1);
   });
 
-  it('recomputes the mask only when the peak set changes', async () => {
+  it('recomputes the mask only when the area changes', async () => {
     const { map, rerender } = await renderLoaded(baseProps());
     const first = map.data['mountain-mask'];
+    expect(map.setMaxBounds).toHaveBeenCalledTimes(1);
 
     rerender(<MapView {...baseProps({ progress: { peaks: { rysy: { status: 'planned' } } }, peaks: [...peaks] })} />);
     expect(map.data['mountain-mask']).toBe(first);
+    expect(map.setMaxBounds).toHaveBeenCalledTimes(1);
 
-    const extra: PeakSummary = { id: 'tarnica', name: 'Tarnica', range: 'Bieszczady', elevation: 1346, lat: 49.0748, lon: 22.7263, routeCount: 0 };
-    rerender(<MapView {...baseProps({ peaks: [...peaks, extra] })} />);
+    const other: MountainArea = {
+      areas: { type: 'MultiPolygon', coordinates: [[[[19, 49], [20, 49], [20, 50], [19, 50], [19, 49]]]] },
+      bounds: [18.5, 48.5, 20.5, 50.5],
+    };
+    rerender(<MapView {...baseProps({ area: other })} />);
     expect(map.data['mountain-mask']).not.toBe(first);
-    expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(4);
+    expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(2);
+    expect(map.setMaxBounds).toHaveBeenLastCalledWith(other.bounds);
     // Applying again must not nest the within filter.
     const cityFilter = map.filters['label_city'] as unknown[];
     expect(cityFilter).toHaveLength(3);
     expect(cityFilter[1]).toEqual(['==', ['get', 'class'], 'city']);
   });
 
-  it('leaves the map unmasked while there are no peaks', async () => {
-    const { map } = await renderLoaded(baseProps({ peaks: [] }));
+  it('leaves the map unmasked while there is no area', async () => {
+    const { map } = await renderLoaded(baseProps({ area: null }));
     expect(map.data['mountain-mask']).toBeUndefined();
     expect(map.layout).not.toHaveProperty(['label_country_1.visibility']);
     expect(map.filters).toEqual({});
