@@ -2,7 +2,7 @@ import { act, render, waitFor } from '@testing-library/react';
 import type { StyleSpecification } from 'maplibre-gl';
 import type { MountainArea, PeakDetail, PeakSummary, Route } from '../data/schema';
 import areaFixture from '../test/fixtures/mountain-area.json';
-import { minZoomForBounds } from './camera';
+import { minZoomForBounds, padBounds } from './camera';
 import { MapView } from './MapView';
 import { OVERLAY_SOURCE_IDS } from './overlay';
 
@@ -164,6 +164,8 @@ const STYLE: StyleSpecification = {
 };
 
 const area = areaFixture as MountainArea;
+/** The camera limits have slack so a pitched view at minimum zoom still shows the whole area. */
+const padded = (bounds: MountainArea['bounds']) => padBounds(bounds, 0.3);
 
 const peaks: PeakSummary[] = [
   { id: 'babia-gora', name: 'Babia Góra', range: 'Beskid Żywiecki', elevation: 1725, lat: 49.5732, lon: 19.5294, routeCount: 1 },
@@ -321,23 +323,39 @@ describe('MapView', () => {
 
   it('keeps the camera inside the area: maxBounds from the file and a minZoom that fits the container', async () => {
     const { map } = await renderLoaded(baseProps());
-    expect(map.setMaxBounds).toHaveBeenCalledWith(area.bounds);
-    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(area.bounds, 800, 600));
+    expect(map.setMaxBounds).toHaveBeenCalledWith(padded(area.bounds));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(padded(area.bounds), 800, 600));
   });
 
   it('recomputes minZoom when the container is resized', async () => {
     const { map } = await renderLoaded(baseProps());
-    const wide = minZoomForBounds(area.bounds, 800, 600);
+    const wide = minZoomForBounds(padded(area.bounds), 800, 600);
 
     map.size = { clientWidth: 360, clientHeight: 640 };
     act(() => map.emit('resize'));
-    const narrow = minZoomForBounds(area.bounds, 360, 640);
+    const narrow = minZoomForBounds(padded(area.bounds), 360, 640);
     expect(narrow).toBeLessThan(wide);
     expect(map.setMinZoom).toHaveBeenLastCalledWith(narrow);
 
     map.size = { clientWidth: 1280, clientHeight: 800 };
     act(() => map.emit('resize'));
-    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(area.bounds, 1280, 800));
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(minZoomForBounds(padded(area.bounds), 1280, 800));
+  });
+
+  it('pads the bounds by 30% of the span on each side', async () => {
+    const { map } = await renderLoaded(baseProps());
+    const [west, south, east, north] = map.setMaxBounds.mock.calls[0]![0] as number[];
+    expect(west).toBeCloseTo(15 - 0.3 * 5.9, 9);
+    expect(east).toBeCloseTo(20.9 + 0.3 * 5.9, 9);
+    expect(south).toBeCloseTo(48.6 - 0.3 * 2.7, 9);
+    expect(north).toBeCloseTo(51.3 + 0.3 * 2.7, 9);
+  });
+
+  it('stops listening for resize when unmounted', async () => {
+    const { map, unmount } = await renderLoaded(baseProps());
+    expect(map.handlers.some((hd) => hd.type === 'resize')).toBe(true);
+    unmount();
+    expect(map.handlers.some((hd) => hd.type === 'resize')).toBe(false);
   });
 
   it('does not restrict the camera without an area (the file could not be loaded)', async () => {
@@ -353,7 +371,7 @@ describe('MapView', () => {
     expect(map.data['mountain-mask']).toBeUndefined();
 
     rerender(<MapView {...baseProps()} />);
-    expect(map.setMaxBounds).toHaveBeenCalledWith(area.bounds);
+    expect(map.setMaxBounds).toHaveBeenCalledWith(padded(area.bounds));
     expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(3);
   });
 
@@ -387,7 +405,7 @@ describe('MapView', () => {
     rerender(<MapView {...baseProps({ area: other })} />);
     expect(map.data['mountain-mask']).not.toBe(first);
     expect((map.data['mountain-mask'] as { features: unknown[] }).features).toHaveLength(2);
-    expect(map.setMaxBounds).toHaveBeenLastCalledWith(other.bounds);
+    expect(map.setMaxBounds).toHaveBeenLastCalledWith(padded(other.bounds));
     // Applying again must not nest the within filter.
     const cityFilter = map.filters['label_city'] as unknown[];
     expect(cityFilter).toHaveLength(3);

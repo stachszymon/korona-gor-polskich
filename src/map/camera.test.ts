@@ -1,4 +1,4 @@
-import { fitAdjustment, fitsInViewport, frameRoute, minZoomForBounds, projectedBox, type FramingMap } from './camera';
+import { fitAdjustment, fitsInViewport, frameRoute, minZoomForBounds, padBounds, projectedBox, type FramingMap } from './camera';
 
 const viewport = { width: 800, height: 600 };
 
@@ -225,5 +225,33 @@ describe('minZoomForBounds', () => {
 
   it('never goes below zero for a degenerate window', () => {
     expect(minZoomForBounds(bounds, 0, 0)).toBe(0);
+  });
+});
+
+describe('padBounds', () => {
+  it('grows every side by the share of the span on that axis', () => {
+    const padded = padBounds([10, 40, 20, 50], 0.1);
+    expect(padded[0]).toBeCloseTo(9, 9);
+    expect(padded[1]).toBeCloseTo(39, 9);
+    expect(padded[2]).toBeCloseTo(21, 9);
+    expect(padded[3]).toBeCloseTo(51, 9);
+  });
+
+  it('uses each axis own span', () => {
+    const [west, south, east, north] = padBounds([15, 48, 23, 51], 0.08);
+    expect(west).toBeCloseTo(15 - 0.64, 9);
+    expect(east).toBeCloseTo(23 + 0.64, 9);
+    expect(south).toBeCloseTo(48 - 0.24, 9);
+    expect(north).toBeCloseTo(51 + 0.24, 9);
+  });
+
+  it('stays inside the Web Mercator world', () => {
+    expect(padBounds([-179, -84, 179, 84], 0.5)).toEqual([-180, -85, 180, 85]);
+  });
+
+  it('does not mutate its input', () => {
+    const input: [number, number, number, number] = [10, 40, 20, 50];
+    padBounds(input, 0.1);
+    expect(input).toEqual([10, 40, 20, 50]);
   });
 });

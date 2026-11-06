@@ -105,6 +105,19 @@ export function keepPointsInView(map: FramingMap, points: readonly LngLat[], pad
   }
 }
 
+/**
+ * `bounds` grown on every side by `share` of its span on that axis, kept inside the Web Mercator world
+ * (longitude +-180, latitude +-85). Gives a pitched camera room at the edges of the bounds.
+ */
+export function padBounds(
+  [west, south, east, north]: readonly [number, number, number, number],
+  share: number,
+): [number, number, number, number] {
+  const dLon = (east - west) * share;
+  const dLat = (north - south) * share;
+  return [Math.max(west - dLon, -180), Math.max(south - dLat, -85), Math.min(east + dLon, 180), Math.min(north + dLat, 85)];
+}
+
 /** Side of a Web Mercator tile in pixels (MapLibre's world is `512 * 2^zoom` px wide). */
 const TILE_SIZE = 512;
 
@@ -118,6 +131,8 @@ function mercatorY(lat: number): number {
  * The zoom at which `bounds` (`[west, south, east, north]`) just fits a `widthPx` x `heightPx` window,
  * top-down in Web Mercator with 512 px tiles. Used as the map's `minZoom`: zooming out further would
  * show more than the bounds. Never below 0.
+ * Top-down only: a pitched camera sees the near rows magnified (about 1.4x at the bottom edge at pitch 50),
+ * so a pitched view at this zoom clips the near corners. Pass bounds with slack (see `padBounds`); MapLibre's own `maxBounds` constraint is pitch-aware too.
  */
 export function minZoomForBounds(
   [west, south, east, north]: readonly [number, number, number, number],

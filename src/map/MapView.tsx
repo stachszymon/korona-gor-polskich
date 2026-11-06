@@ -4,7 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { MapLayerMouseEvent, StyleSpecification } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 import type { MountainArea, PeakDetail, PeakSummary } from '../data/schema';
-import { frameRoute, minZoomForBounds } from './camera';
+import { frameRoute, minZoomForBounds, padBounds } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { labelRestrictions } from './labels';
 import { firstSymbolLayerId, toMountainStyle } from './mountainStyle';
@@ -58,6 +58,13 @@ const START_ZOOM = 6.5;
 const ROUTE_PITCH = 48;
 const ROUTE_PADDING = 60;
 const ROUTE_EASE_MS = 1200;
+/**
+ * Share of the area's span added on each side of the camera limits. MapLibre keeps the whole pitched
+ * viewport (the wide far edge included) inside `maxBounds`, so at the default pitch tight bounds force a zoom
+ * at which the near corners and the Tarnica / Wysoka Kopa peaks fall off-screen. Measured: 8% is not enough at
+ * 1280x800, 30% shows every peak in the overview.
+ */
+const BOUNDS_PADDING = 0.3;
 const ZOOM_OUT_STEP = 0.1;
 const MAX_ZOOM_OUT_STEPS = 30;
 
@@ -220,7 +227,8 @@ export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !area) return;
-    const { bounds } = area;
+    // Slack around the bounds, see BOUNDS_PADDING.
+    const bounds = padBounds(area.bounds, BOUNDS_PADDING);
     const fitMinZoom = () => {
       const { clientWidth, clientHeight } = map.getContainer();
       map.setMinZoom(minZoomForBounds(bounds, clientWidth, clientHeight));
