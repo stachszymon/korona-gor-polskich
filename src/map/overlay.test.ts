@@ -14,6 +14,8 @@ import {
   overlayLayers,
   overlaySources,
   peaksToGeoJSON,
+  routeHoverFilter,
+  routesToGeoJSON,
   routeToGeoJSON,
   trailsForDisplay,
   trailsOpacity,
@@ -107,19 +109,67 @@ describe('routeToGeoJSON', () => {
   });
 });
 
+describe('routesToGeoJSON', () => {
+  const route = (id: string, x: number) =>
+    ({
+      id,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [x, 49, 800],
+          [x + 0.1, 49.1, 900],
+        ],
+      },
+    }) as Route;
+
+  it('is empty without routes', () => {
+    expect(routesToGeoJSON([])).toEqual({ type: 'FeatureCollection', features: [] });
+  });
+
+  it('gives one feature per route, carrying only its id', () => {
+    const routes = [route('a--1', 19), route('a--2', 20)];
+    const fc = routesToGeoJSON(routes);
+    expect(fc.features).toHaveLength(2);
+    expect(fc.features.map((f) => f.properties)).toEqual([{ id: 'a--1' }, { id: 'a--2' }]);
+    expect(fc.features.map((f) => f.geometry)).toEqual(routes.map((r) => r.geometry));
+  });
+});
+
 describe('overlayLayers', () => {
+  it('draws every route thin and purple under the trails, and the hovered one thick on top of them', () => {
+    const byId = Object.fromEntries(overlayLayers().map((l) => [l.id, l]));
+    expect(byId['routes-all']).toMatchObject({
+      type: 'line',
+      source: 'routes',
+      paint: { 'line-color': '#6a1b9a', 'line-width': 2, 'line-opacity': 0.55 },
+    });
+    expect(byId['routes-hover']).toMatchObject({
+      type: 'line',
+      source: 'routes',
+      filter: ['==', ['get', 'id'], ''],
+      paint: { 'line-color': '#6a1b9a', 'line-width': 4, 'line-opacity': 1 },
+    });
+  });
+
+  it('routeHoverFilter matches one route id', () => {
+    expect(routeHoverFilter('a--1')).toEqual(['==', ['get', 'id'], 'a--1']);
+    expect(routeHoverFilter(null)).toEqual(['==', ['get', 'id'], '']);
+  });
+
   it('overlayLayers ids are in the documented order', () => {
     const layers = overlayLayers();
     expect(layers.map((l) => l.id)).toEqual([
+      'routes-all',
       'trails',
+      'routes-hover',
       'route-selected-casing',
       'route-selected',
       'peaks',
       'peak-labels',
       'profile-cursor',
     ]);
-    expect(OVERLAY_SOURCE_IDS).toEqual(['trails', 'route', 'peaks', 'cursor']);
-    expect(Object.keys(overlaySources())).toEqual(['trails', 'route', 'peaks', 'cursor']);
+    expect(OVERLAY_SOURCE_IDS).toEqual(['trails', 'routes', 'route', 'peaks', 'cursor']);
+    expect(Object.keys(overlaySources())).toEqual(['trails', 'routes', 'route', 'peaks', 'cursor']);
   });
 
   it('every layer references a declared overlay source', () => {

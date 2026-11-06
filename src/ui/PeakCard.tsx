@@ -10,6 +10,7 @@ export interface PeakCardProps {
   entry: PeakProgress | null;
   selectedRouteId: string | null;
   onSelectRoute(id: string): void;
+  onHoverRoute(id: string | null): void;
   onStatusChange(entry: PeakProgress | null): void;
   onRetry(): void;
   onClose(): void;
@@ -22,6 +23,7 @@ export function PeakCard({
   entry,
   selectedRouteId,
   onSelectRoute,
+  onHoverRoute,
   onStatusChange,
   onRetry,
   onClose,
@@ -49,7 +51,12 @@ export function PeakCard({
           </div>
         )}
         {detailStatus === 'ready' && detail && (
-          <RouteList routes={detail.routes} selectedRouteId={selectedRouteId} onSelectRoute={onSelectRoute} />
+          <RouteList
+            routes={detail.routes}
+            selectedRouteId={selectedRouteId}
+            onSelectRoute={onSelectRoute}
+            onHoverRoute={onHoverRoute}
+          />
         )}
       </section>
     </article>

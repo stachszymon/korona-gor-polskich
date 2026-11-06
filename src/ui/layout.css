@@ -435,13 +435,43 @@ textarea {
 
 /* ---------- Routes ---------- */
 
-.route-list {
+.route-list__count {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+/* The list scrolls inside the card, which fills the panel: a peak can have 17 routes. */
+.app__panel-content:has(.peak-card) {
   display: flex;
   flex-direction: column;
+}
+
+.peak-card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.peak-card__routes {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 12rem;
+}
+
+.route-list {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
   gap: 8px;
+  min-height: 0;
   margin: 0;
-  padding: 0;
+  padding: 0 4px 0 0;
   list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .route-list__button {
@@ -475,6 +505,16 @@ textarea {
   border-radius: 2px;
 }
 
+.route-list__arrow {
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--color-muted);
+}
+
+.route-list__button[aria-pressed='true'] .route-list__arrow {
+  color: rgb(255 255 255 / 0.85);
+}
+
 .route-list__trailhead,
 .route-list__distance,
 .route-list__ascent,
@@ -501,6 +541,19 @@ textarea {
 
 .route-list__empty {
   color: var(--color-muted);
+}
+
+/* Route tooltip on the map: follows the pointer, so it must never catch it. */
+.route-tooltip,
+.route-tooltip .maplibregl-popup-content {
+  pointer-events: none;
+}
+
+.route-tooltip .maplibregl-popup-content {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ---------- Elevation profile ---------- */

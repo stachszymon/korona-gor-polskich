@@ -68,6 +68,19 @@ export function routeToGeoJSON(route: Route | null): FeatureCollection<LineStrin
   };
 }
 
+/** Every route of the peak in one collection, one feature each, told apart by `id`. */
+export function routesToGeoJSON(routes: readonly Route[]): FeatureCollection<LineString, RouteProperties> {
+  return {
+    type: 'FeatureCollection',
+    features: routes.map((route) => ({ type: 'Feature', geometry: route.geometry, properties: { id: route.id } })),
+  };
+}
+
+/** Filter of the `routes-hover` layer: shows the route with this id, or nothing for `null`. */
+export function routeHoverFilter(id: string | null): ['==', ['get', 'id'], string] {
+  return ['==', ['get', 'id'], id ?? ''];
+}
+
 export type MaskProperties = { kind: 'outside' | 'area' };
 
 /** The dimmed outside (world polygon with holes) and the mountain areas, in one collection. */
@@ -112,7 +125,7 @@ export function maskLayers(): LayerSpecification[] {
   ];
 }
 
-export const OVERLAY_SOURCE_IDS = ['trails', 'route', 'peaks', 'cursor'] as const;
+export const OVERLAY_SOURCE_IDS = ['trails', 'routes', 'route', 'peaks', 'cursor'] as const;
 
 /** Empty GeoJSON sources for the overlay layers; the map fills them with `setData`. */
 export function overlaySources(): Record<(typeof OVERLAY_SOURCE_IDS)[number], GeoJSONSourceSpecification> {
@@ -120,13 +133,20 @@ export function overlaySources(): Record<(typeof OVERLAY_SOURCE_IDS)[number], Ge
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
   });
-  return { trails: empty(), route: empty(), peaks: empty(), cursor: empty() };
+  return { trails: empty(), routes: empty(), route: empty(), peaks: empty(), cursor: empty() };
 }
 
 export const ROUTE_HEX = '#6a1b9a';
 
 export function overlayLayers(): LayerSpecification[] {
   return [
+    {
+      id: 'routes-all',
+      type: 'line',
+      source: 'routes',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ROUTE_HEX, 'line-width': 2, 'line-opacity': 0.55 },
+    },
     {
       id: 'trails',
       type: 'line',
@@ -138,6 +158,14 @@ export function overlayLayers(): LayerSpecification[] {
         'line-offset': ['get', 'offset'],
         'line-opacity': trailsOpacity(false),
       },
+    },
+    {
+      id: 'routes-hover',
+      type: 'line',
+      source: 'routes',
+      filter: routeHoverFilter(null),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ROUTE_HEX, 'line-width': 4, 'line-opacity': 1 },
     },
     {
       id: 'route-selected-casing',

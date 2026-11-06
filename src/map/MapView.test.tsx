@@ -79,9 +79,13 @@ const h = vi.hoisted(() => {
     setLayoutProperty(layer: string, prop: string, value: unknown) {
       this.layout[`${layer}.${prop}`] = value;
     }
+    canvas = { style: {} as Record<string, string> };
     getCanvas() {
-      return { style: {} as Record<string, string> };
+      return this.canvas;
     }
+    /** What `queryRenderedFeatures` returns, by the (first) layer asked for. */
+    queryResults: Record<string, { properties: Record<string, unknown> }[]> = {};
+    queryRenderedFeatures = vi.fn((_geometry: unknown, options?: { layers?: string[] }) => this.queryResults[options?.layers?.[0] ?? ''] ?? []);
     setPaintProperty(layer: string, prop: string, value: unknown) {
       this.paint[`${layer}.${prop}`] = value;
     }
@@ -136,12 +140,45 @@ const h = vi.hoisted(() => {
       this.removed = true;
     }
   }
-  return { FakeMap, addProtocol: vi.fn(), setupMaplibre: vi.fn(), setWorkerUrl: vi.fn() };
+  class FakePopup {
+    static instances: FakePopup[] = [];
+    options: Record<string, unknown>;
+    text = '';
+    lngLat: unknown = null;
+    added = false;
+    removed = false;
+    constructor(options: Record<string, unknown>) {
+      this.options = options;
+      FakePopup.instances.push(this);
+    }
+    setLngLat(lngLat: unknown) {
+      this.lngLat = lngLat;
+      return this;
+    }
+    setText(text: string) {
+      this.text = text;
+      return this;
+    }
+    addTo() {
+      this.added = true;
+      this.removed = false;
+      return this;
+    }
+    remove() {
+      this.removed = true;
+      return this;
+    }
+    isOpen() {
+      return this.added && !this.removed;
+    }
+  }
+  return { FakeMap, FakePopup, addProtocol: vi.fn(), setupMaplibre: vi.fn(), setWorkerUrl: vi.fn() };
 });
 
 vi.mock('maplibre-gl', () => ({
   Map: h.FakeMap,
   NavigationControl: class {},
+  Popup: h.FakePopup,
   addProtocol: h.addProtocol,
   setWorkerUrl: h.setWorkerUrl,
 }));
@@ -230,8 +267,10 @@ const baseProps = (over: Partial<Props> = {}): Props => ({
   progress: { peaks: { rysy: { status: 'done' } } },
   detail: null,
   selectedRouteId: null,
+  hoveredRouteId: null,
   cursor: null,
   onPeakClick: vi.fn(),
+  onRouteSelect: vi.fn(),
   onTileError: vi.fn(),
   onMapError: vi.fn(),
   ...over,
@@ -248,6 +287,7 @@ async function renderLoaded(props: Props) {
 
 beforeEach(() => {
   h.FakeMap.instances.length = 0;
+  h.FakePopup.instances.length = 0;
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => ({ ok: true, json: async () => STYLE })),
@@ -279,7 +319,9 @@ describe('MapView', () => {
       'contour-labels',
       'mountain-mask-fill',
       'mountain-mask-outline',
+      'routes-all',
       'trails',
+      'routes-hover',
       'route-selected-casing',
       'route-selected',
       'peaks',
@@ -468,6 +510,166 @@ describe('MapView', () => {
     expect(map.paint['trails.line-opacity']).toBe(1);
     expect((map.data['route'] as { features: unknown[] }).features).toHaveLength(0);
     expect(map.calls).toEqual([]);
+  });
+
+  describe('routes on the map', () => {
+    const second: Route = { ...route, id: 'babia-gora--korbielow', name: 'Z Korbielowa', distanceKm: 9.25, durationMin: 215 };
+    const twoRoutes: PeakDetail = { ...detail, routes: [route, second] };
+    const lngLat = { lng: 19.51, lat: 49.59 };
+    const popups = () => h.FakePopup.instances;
+    const hoverFilter = (map: ReturnType<typeof currentMap>) => map.filters['routes-hover'];
+    const over = (map: ReturnType<typeof currentMap>, ...ids: string[]) => {
+      map.queryResults['routes-all'] = ids.map((id) => ({ properties: { id } }));
+    };
+    const move = (map: ReturnType<typeof currentMap>) => act(() => map.emit('mousemove', { point: { x: 100, y: 80 }, lngLat }));
+
+    it('draws every route of the peak, thin', async () => {
+      const { map, rerender } = await renderLoaded(baseProps());
+      expect((map.data['routes'] as { features: unknown[] }).features).toHaveLength(0);
+      rerender(<MapView {...baseProps({ detail: twoRoutes })} />);
+      const fc = map.data['routes'] as { features: { properties: unknown }[] };
+      expect(fc.features.map((f) => f.properties)).toEqual([{ id: route.id }, { id: second.id }]);
+      rerender(<MapView {...baseProps({ detail: null })} />);
+      expect((map.data['routes'] as { features: unknown[] }).features).toHaveLength(0);
+    });
+
+    it('hovering a route highlights it and shows a tooltip with name, distance and time', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, second.id);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], second.id]);
+      expect(map.canvas.style['cursor']).toBe('pointer');
+      expect(popups().filter((p) => p.isOpen())).toHaveLength(1);
+      const popup = popups()[0]!;
+      expect(popup.options).toMatchObject({ closeButton: false, closeOnClick: false });
+      expect(popup.text).toBe('Z Korbielowa · 9,3 km na szczyt · ok. 3 h 35 min');
+      expect(popup.lngLat).toEqual(lngLat);
+      expect(popup.isOpen()).toBe(true);
+    });
+
+    it('looks for routes in a few pixels around the pointer, so a thin line is easy to hit', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
+        [
+          [100 - 6, 80 - 6],
+          [100 + 6, 80 + 6],
+        ],
+        { layers: ['routes-all'] },
+      );
+    });
+
+    it('follows the pointer along the route and switches between routes', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      over(map, second.id);
+      act(() => map.emit('mousemove', { point: { x: 120, y: 90 }, lngLat: { lng: 19.6, lat: 49.7 } }));
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], second.id]);
+      expect(popups().filter((p) => p.isOpen())).toHaveLength(1);
+      expect(popups().at(-1)?.text).toContain('Z Korbielowa');
+    });
+
+    it('moving off the route clears the highlight, the tooltip and the cursor', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      over(map);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], '']);
+      expect(map.canvas.style['cursor']).toBe('');
+      expect(popups().some((p) => p.isOpen())).toBe(false);
+    });
+
+    it('leaving the map clears the hover state', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      act(() => map.emit('mouseout'));
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], '']);
+      expect(map.canvas.style['cursor']).toBe('');
+      expect(popups().some((p) => p.isOpen())).toBe(false);
+    });
+
+    it('clears the hover state when the camera starts moving', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      act(() => map.emit('movestart'));
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], '']);
+      expect(popups().some((p) => p.isOpen())).toBe(false);
+    });
+
+    it('does not take over the pointer cursor from a peak that sits on the route', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      map.queryResults['peaks'] = [{ properties: { id: 'babia-gora' } }];
+      move(map);
+      expect(popups().some((p) => p.isOpen())).toBe(false);
+      expect(hoverFilter(map)).not.toEqual(['==', ['get', 'id'], route.id]);
+    });
+
+    it('clicking a route calls onRouteSelect with its id', async () => {
+      const props = baseProps({ detail: twoRoutes });
+      const { map } = await renderLoaded(props);
+      over(map, second.id);
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat }));
+      expect(props.onRouteSelect).toHaveBeenCalledExactlyOnceWith(second.id);
+    });
+
+    it('a tap lands on the route within a bigger touch area', async () => {
+      const props = baseProps({ detail: twoRoutes });
+      const { map } = await renderLoaded(props);
+      over(map, route.id);
+      class FakeTouchEvent extends Event {}
+      vi.stubGlobal('TouchEvent', FakeTouchEvent);
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat, originalEvent: new FakeTouchEvent('touchend') }));
+      expect(props.onRouteSelect).toHaveBeenCalledWith(route.id);
+      expect(map.queryRenderedFeatures).toHaveBeenCalledWith(
+        [
+          [100 - 14, 80 - 14],
+          [100 + 14, 80 + 14],
+        ],
+        { layers: ['routes-all'] },
+      );
+    });
+
+    it('a click on empty map or on a peak does not select a route', async () => {
+      const props = baseProps({ detail: twoRoutes });
+      const { map } = await renderLoaded(props);
+      act(() => map.emit('click', { point: { x: 1, y: 1 }, lngLat }));
+      over(map, route.id);
+      map.queryResults['peaks'] = [{ properties: { id: 'babia-gora' } }];
+      act(() => map.emit('click', { point: { x: 100, y: 80 }, lngLat }));
+      expect(props.onRouteSelect).not.toHaveBeenCalled();
+    });
+
+    it('highlights the route whose row is hovered in the list', async () => {
+      const { map, rerender } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      rerender(<MapView {...baseProps({ detail: twoRoutes, hoveredRouteId: second.id })} />);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], second.id]);
+      rerender(<MapView {...baseProps({ detail: twoRoutes, hoveredRouteId: null })} />);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], '']);
+    });
+
+    it('a route hovered on the map wins over the list hover until the pointer leaves it', async () => {
+      const { map } = await renderLoaded(baseProps({ detail: twoRoutes, hoveredRouteId: second.id }));
+      over(map, route.id);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], route.id]);
+      over(map);
+      move(map);
+      expect(hoverFilter(map)).toEqual(['==', ['get', 'id'], second.id]);
+    });
+
+    it('closes the tooltip when another peak is loaded', async () => {
+      const { map, rerender } = await renderLoaded(baseProps({ detail: twoRoutes }));
+      over(map, route.id);
+      move(map);
+      rerender(<MapView {...baseProps({ detail: null })} />);
+      expect(popups().some((p) => p.isOpen())).toBe(false);
+    });
   });
 
   it('moves the profile cursor point', async () => {

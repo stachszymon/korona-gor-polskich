@@ -1,9 +1,10 @@
 import mlcontour from 'maplibre-contour';
 import * as maplibregl from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
-import type { MapLayerMouseEvent, StyleSpecification } from 'maplibre-gl';
-import { useEffect, useRef, useState } from 'react';
-import type { MountainArea, PeakDetail, PeakSummary } from '../data/schema';
+import type { MapLayerMouseEvent, MapMouseEvent, MapTouchEvent, StyleSpecification } from 'maplibre-gl';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MountainArea, PeakDetail, PeakSummary, Route } from '../data/schema';
+import { formatDistance, formatDuration } from '../ui/format';
 import { frameRoute, minZoomForBounds, padBounds } from './camera';
 import { DEM_URL, STYLE_URL } from './config';
 import { labelRestrictions } from './labels';
@@ -18,6 +19,8 @@ import {
   overlayLayers,
   overlaySources,
   peaksToGeoJSON,
+  routeHoverFilter,
+  routesToGeoJSON,
   routeToGeoJSON,
   trailsForDisplay,
   trailsOpacity,
@@ -33,9 +36,13 @@ export type MapViewProps = {
   progress: ProgressLike;
   detail: PeakDetail | null;
   selectedRouteId: string | null;
+  /** The route whose row is hovered in the list: highlighted on the map. */
+  hoveredRouteId: string | null;
   /** `[lon, lat]` of the point under the elevation profile cursor. */
   cursor: [number, number] | null;
   onPeakClick(id: string): void;
+  /** A route was clicked (or tapped) on the map. */
+  onRouteSelect(id: string): void;
   onTileError(): void;
   /** The map could not be created (e.g. the WebGL context failed despite the probe). */
   onMapError(): void;
@@ -50,6 +57,31 @@ const BARE_STYLE: StyleSpecification = {
 };
 
 type Position = [number, number];
+
+/** Routes are thin lines: look this many pixels around the pointer (more for a finger) for one. */
+const ROUTE_HIT_PX = 6;
+const ROUTE_TOUCH_HIT_PX = 14;
+
+/** Id of the route under the pointer, or `null`. A peak under the pointer wins: routes end at peaks. */
+function routeIdAt(map: maplibregl.Map, event: MapMouseEvent | MapTouchEvent): string | null {
+  if (map.queryRenderedFeatures(event.point, { layers: ['peaks'] }).length > 0) return null;
+  const touch = typeof TouchEvent !== 'undefined' && event.originalEvent instanceof TouchEvent;
+  const r = touch ? ROUTE_TOUCH_HIT_PX : ROUTE_HIT_PX;
+  const { x, y } = event.point;
+  const hits = map.queryRenderedFeatures(
+    [
+      [x - r, y - r],
+      [x + r, y + r],
+    ],
+    { layers: ['routes-all'] },
+  );
+  const id: unknown = hits[0]?.properties?.['id'];
+  return typeof id === 'string' ? id : null;
+}
+
+function routeTooltip(route: Route): string {
+  return `${route.name} · ${formatDistance(route.distanceKm)} na szczyt · ${formatDuration(route.durationMin)}`;
+}
 
 /** Rough view of southern Poland, so the first tiles are not the whole world. */
 const START_CENTER: Position = [19, 50];
@@ -124,16 +156,40 @@ function keepInView(map: maplibregl.Map, bounds: [Position, Position], padding: 
   for (let step = 0; step < MAX_ZOOM_OUT_STEPS && !visible(); step++) map.setZoom(map.getZoom() - ZOOM_OUT_STEP);
 }
 
-export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor, onPeakClick, onTileError, onMapError }: MapViewProps) {
+export function MapView({
+  peaks,
+  area,
+  progress,
+  detail,
+  selectedRouteId,
+  hoveredRouteId,
+  cursor,
+  onPeakClick,
+  onRouteSelect,
+  onTileError,
+  onMapError,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
 
   // Latest values for the long-lived map event handlers and the one-off camera moves.
-  const latest = useRef({ peaks, onPeakClick, onTileError, onMapError });
+  const routes = detail?.routes;
+  const latest = useRef({ peaks, routes, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError });
   useEffect(() => {
-    latest.current = { peaks, onPeakClick, onTileError, onMapError };
+    latest.current = { peaks, routes, hoveredRouteId, onPeakClick, onRouteSelect, onTileError, onMapError };
   });
+  /** The route under the mouse pointer; it wins over the one hovered in the list. */
+  const mapHoveredRoute = useRef<string | null>(null);
+  const clearMapHover = useRef<() => void>(() => {});
+  const appliedHover = useRef<string | null>(null);
+  /** Points the `routes-hover` layer at the hovered route; a pointer on the map wins over a hovered list row. */
+  const syncRouteHover = useCallback((map: maplibregl.Map) => {
+    const id = mapHoveredRoute.current ?? latest.current.hoveredRouteId;
+    if (id === appliedHover.current) return;
+    appliedHover.current = id;
+    map.setFilter('routes-hover', routeHoverFilter(id));
+  }, []);
   const tileErrorReported = useRef(false);
   const initialViewDone = useRef(false);
 
@@ -142,6 +198,9 @@ export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor
     if (!container) return;
     let cancelled = false;
     let map: maplibregl.Map | null = null;
+    let loaded = false;
+    let tooltip: maplibregl.Popup | null = null;
+    let routeCursor = false;
 
     void loadMountainStyle().then(({ style, failed }) => {
       if (cancelled) return;
@@ -168,8 +227,43 @@ export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor
         map.on('mouseleave', 'peaks', () => {
           if (map) map.getCanvas().style.cursor = '';
         });
+        const hoverMap = map;
+        tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'route-tooltip', offset: 12 });
+        const clearHover = () => {
+          mapHoveredRoute.current = null;
+          tooltip?.remove();
+          if (routeCursor) hoverMap.getCanvas().style.cursor = '';
+          routeCursor = false;
+          if (loaded) syncRouteHover(hoverMap);
+        };
+        clearMapHover.current = clearHover;
+        // One handler for everything hoverable that is not a peak, so the priority is explicit: a route wins
+        // over a trail (trail hover is added below the route check and runs only when no route is under the pointer).
+        map.on('mousemove', (event: MapMouseEvent) => {
+          if (!loaded) return;
+          const id = routeIdAt(hoverMap, event);
+          const route = id === null ? undefined : latest.current.routes?.find((r) => r.id === id);
+          if (!route) {
+            clearHover();
+            return;
+          }
+          mapHoveredRoute.current = route.id;
+          hoverMap.getCanvas().style.cursor = 'pointer';
+          routeCursor = true;
+          syncRouteHover(hoverMap);
+          tooltip?.setLngLat(event.lngLat).setText(routeTooltip(route)).addTo(hoverMap);
+        });
+        map.on('mouseout', clearHover);
+        // The camera moved (a click framed the route, a drag started): the route is no longer under the pointer.
+        map.on('movestart', clearHover);
+        map.on('click', (event: MapMouseEvent) => {
+          if (!loaded) return;
+          const id = routeIdAt(hoverMap, event);
+          if (id !== null) latest.current.onRouteSelect(id);
+        });
         map.on('load', () => {
           if (!map) return;
+          loaded = true;
           map.addSource('contours', contourSourceSpec(getDemSource()));
           const anchor = firstSymbolLayerId(map.getStyle().layers);
           for (const layer of contourLayers()) map.addLayer(layer, anchor);
@@ -200,11 +294,13 @@ export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor
 
     return () => {
       cancelled = true;
+      tooltip?.remove();
+      clearMapHover.current = () => {};
       map?.remove();
       mapRef.current = null;
       setReady(false);
     };
-  }, []);
+  }, [syncRouteHover]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -250,6 +346,20 @@ export function MapView({ peaks, area, progress, detail, selectedRouteId, cursor
     map.fitBounds(bounds, { padding: 40, pitch: 50, duration: 0 });
     keepInView(map, bounds, 40);
   }, [ready, peaks]);
+
+  // The list hover shows on the map, unless the pointer is on a route of its own.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    syncRouteHover(map);
+  }, [ready, hoveredRouteId, syncRouteHover]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    clearMapHover.current();
+    (map.getSource('routes') as maplibregl.GeoJSONSource | undefined)?.setData(routesToGeoJSON(routes ?? []));
+  }, [ready, routes]);
 
   useEffect(() => {
     const map = mapRef.current;
